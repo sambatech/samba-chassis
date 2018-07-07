@@ -15,7 +15,7 @@ setup(
     license="Copyright SambaTech",
     keywords="microsservices framework library",
     url="http://www.sambatech.com.br",
-    packages=['samba-chassis'],
+    packages=['samba_chassis'],
     long_description=read('README'),
     classifiers=[
         "Development Status :: 3 - Alpha",

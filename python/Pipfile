@@ -4,6 +4,9 @@ verify_ssl = true
 name = "pypi"
 
 [dev-packages]
+pytest = "*"
+pytest-cov = "*"
+mock = "*"
 
 [packages]
 setuptools = "*"

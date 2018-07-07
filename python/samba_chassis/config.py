@@ -1,3 +1,12 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*
+"""
+Copyright (c) SambaTech. All rights reserved.
+
+created_at: 05-JUL-2018
+updated_at: 06-JUL-2018
+
+"""
 from collections import namedtuple
 import json
 import yaml
@@ -8,32 +17,71 @@ _config_ledger = {}
 
 
 class ConfigItem(object):
-    def __init__(self, default=None, ctype=None, rules=[]):
+    """
+    Configuration item to be used in configuration layouts.
+
+    It provides default value capabilities, can enforce types and restriction rules.
+    """
+    def __init__(self, default=None, type=None, rules=[]):
         self.default = default
         self.current = default
-        self.ctype = ctype
+        self.type = type
         self.rules = rules
 
     def eval(self):
-        if self.ctype is not None and not isinstance(self.current, self.ctype):
+        if self.type is not None and not isinstance(self.current, self.type):
             return False
         for rule in self.rules:
             if not rule(self.current):
                 return False
         return True
 
+
 class ConfigLayout(object):
+    """
+    Configuration layout that enforces a set of configuration objects to exist and follow set rules.
+
+    Example of a configuration layout definition:
+    ConfigLayout({
+        config_a: ConfigItem(
+            default="alejandro",
+            type=str,
+            rules=[lambda x: True if x.startswith("a") else False]
+        )
+        config_b: ConfigItem(
+            default="bernardo",
+            type=str,
+            rules=[lambda x: True if x.startswith("b") else False]
+        )
+    })
+    """
     def __init__(self, config_dict):
+        """
+        Initialize object with the configuration dictionary and a simple version of it.
+
+        :param config_dict: Configuration dictionary with ConfigItem elements.
+        """
         self.config_dict = config_dict
-        self.simple_dict = _simplify("", config_dict)
+        self.simple_dict = _simplify(config_dict)
+        print "S:", self.simple_dict
 
     def get(self, config_object=None, base=None, config_entry="default"):
+        """
+        Get configuration object compliant to the layout.
+
+        :param config_object:
+        :param base:
+        :param config_entry:
+        :return:
+        """
+        # Set configuration object if necessary
         if config_object is None:
             if base is None:
                 config_object = _config_ledger[config_entry]
             else:
                 path = base.split(".")
                 config_object = _retrieve(_config_ledger[config_entry], path)
+        # Build final configuration object
         for key in self.simple_dict:
             path = key.split(".")
             try:
@@ -47,16 +95,40 @@ class ConfigLayout(object):
 
 
 def require_env_var(name, default=None, rules=[]):
+    """
+    Require an environment variable to bet set and follow defined restriction rules.
+
+    Obs. Default doesn't have to follow the restriction rules.
+    :param name: Environment variable name.
+    :param default: Environment variable default value.
+    :param rules: Functions to evaluate the variable's value. Each function must return True if the value passes.
+    :return: The environment variable value.
+    """
     try:
         env_var = os.environ[name]
         for rule in rules:
             if not rule(env_var):
                 raise ValueError("Env var {} does not satisfy rules".format(name))
     except KeyError:
-        os.environ[name] = default
+        if default is not None:
+            os.environ[name] = default
+        else:
+            raise ValueError("Env var {} does not exist and there is no default value for it".format(name))
+    return os.environ[name]
 
 
 def get(base=None, config_entry="default", config_layout=None):
+    """
+    Get configuration object.
+
+    It uses base to establish the root node in the hierarchical tree and config entry to
+    choose which configuration object to return. It is possible to force a configuration layout
+    by passing it as an argument.
+    :param base: hierarchical root for the return object.
+    :param config_entry: The data entry to query.
+    :param config_layout: A config layout to enforce.
+    :return: Configuration object.
+    """
     if base is None:
         return _config_ledger[config_entry]
     path = base.split(".")
@@ -71,14 +143,15 @@ def add(name, config_entry="default"):
     """
     Process external configuration data.
 
-    TODO: Allow multiple adds into the same config entries in a merge sort of way
-    :param name: file name (can be yml or json) or "env" for use of environment variables.
+    It is possible to add multiple configuration data by using multiple config entries.
+    TODO: Allow multiple adds into the same config entry in a merge sort of way
+    :param name: file name (can be yml or json) or "[prefix].env" for use of environment variables.
     :param config_entry: name of the entry in the configuration ledger to add to.
     :return: True upon success, False on failure.
     """
     ext = name.split(".")[-1]
     if ext == "env":
-        config_dict = _dict_from_env()
+        config_dict = _dict_from_env(name.split(".")[0])
     elif ext in ["json"]:
         config_dict = _dict_from_json(name)
     elif ext in ["yml", "yaml"]:
@@ -86,7 +159,7 @@ def add(name, config_entry="default"):
     else:
         raise ValueError("File extension not supported")
 
-    alias_dict = _simplify("", config_dict)
+    alias_dict = _simplify(config_dict)
 
     config_object = _objectfy("Object", config_dict, alias_dict)
 
@@ -112,9 +185,19 @@ def _retrieve(ob, path):
     return ob
 
 
-def _dict_from_env():
-    """Return a dictionary taken from the current environment variables."""
-    return os.environ
+def _dict_from_env(prefix=""):
+    """
+    Return a dictionary taken from the current environment variables.
+
+    TODO: Implement hierarchy among multiple prefixes.
+    :param prefix: Prefix that determines valid variables.
+    :return: Dictionary with valid environment variable with the prefix removed.
+    """
+    r = {}
+    for key in os.environ:
+        if key.startswith(prefix):
+            r[key[len(prefix):]] = os.environ[key]
+    return r
 
 
 def _dict_from_yaml(filename):
@@ -149,10 +232,14 @@ def _objectfy(name, element, alias_dict={}):
         return [_objectfy("TupleElement", i, alias_dict) for i in element]
     if isinstance(element, ConfigItem):
         return element.current
-    return alias_dict[element] if isinstance(element, basestring) and element[0] == "." else element
+    try:
+        return alias_dict[element] if isinstance(element, basestring) and element[0] == "." else element
+    except KeyError:
+        warnings.warn("Alias reference {} can't be dereferenced".format(element))
+        return element
 
 
-def _simplify(name, element):
+def _simplify(element, name=""):
     """
     Simplify a dictionary into a map (alias):(non container element) recursively.
 
@@ -163,13 +250,13 @@ def _simplify(name, element):
     s = {}
     if isinstance(element, dict):
         for key in element:
-            s.update(_simplify("{}.{}".format(name, key), element[key]))
+            s.update(_simplify(element[key], "{}.{}".format(name, key)))
     elif isinstance(element, list):
         for i in range(len(element)):
-            s.update(_simplify("{}.{}".format(name, i), element[i]))
+            s.update(_simplify(element[i], "{}.{}".format(name, i)))
     elif isinstance(element, tuple):
         for i in range(len(element)):
-            s.update(_simplify("{}.{}".format(name, i), element[i]))
+            s.update(_simplify(element[i], "{}.{}".format(name, i)))
     else:
         s[name] = element
     return s
@@ -182,6 +269,6 @@ def _cap_first(line):
     :param line: snake case format line of characters
     :return: the good stuff
     """
-    return ' '.join(s[:1].upper() + s[1:] for s in line.split('_'))
+    return ''.join(s[:1].upper() + s[1:] for s in line.split('_'))
 
 
