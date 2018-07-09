@@ -16,7 +16,8 @@ jobs:
     docker:
       - image: circleci/python:2.7
     working_directory: ~/samba-chassis/python
-    - attach_workspace:
+    steps:
+      - attach_workspace:
           at: ~/samba-chassis
       - run:
           name: Installing dependencies
