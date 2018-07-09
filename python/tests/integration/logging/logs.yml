@@ -1,25 +1,25 @@
 version: 1
 disable_existing_loggers: False
 formatters:
-    default:
+    simplef:
         format: '[%(levelname)s] %(name)s: %(message)s'
-    help:
+    extendedf:
         format: "[%(asctime)s] %(process)d %(levelname)s %(name)s:%(funcName)s:%(lineno)s - %(message)s"
 handlers:
-    console:
+    simpleh:
         class: "logging.StreamHandler"
         level: DEBUG
-        formatter: default
-    hell:
+        formatter: simplef
+    extendedh:
         class: "logging.StreamHandler"
         level: DEBUG
-        formatter: help
+        formatter: extendedf
 loggers:
-    normal:
-        handlers: [console]
+    default:
+        handlers: [simpleh]
         level: DEBUG
-        propagate: True
-    help:
-        handlers: [hell]
+        propagate: False
+    extended:
+        handlers: [extendedh]
         level: DEBUG
-        propagate: True
+        propagate: False

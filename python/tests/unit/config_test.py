@@ -9,6 +9,7 @@ updated_at: 06-JUL-2018
 """
 import pytest
 import os
+import samba_chassis
 from samba_chassis import config
 from mock import MagicMock
 
@@ -95,7 +96,7 @@ def test_retrieve():
 
 def test_dict_from_env():
     os.environ = {"VARC1": 1, "VARC2": 2, "SYSTEM1": 1}
-    d = config._dict_from_env("VAR")
+    d = samba_chassis.dict_from_env("VAR")
     assert d == {'C1': 1, 'C2': 2}
 
 
@@ -144,4 +145,4 @@ def test_alias():
 
 
 def test_cap_first():
-    assert config._cap_first("snAke_case") == "SnAkeCase"
+    assert samba_chassis.cap_first("snAke_case") == "SnAkeCase"
