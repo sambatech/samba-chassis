@@ -90,7 +90,7 @@ class ConfigLayout(object):
             if not self.simple_dict[key].eval():
                 raise ValueError("{} is divergent".format(key))
 
-        return _objectfy("LayoutObject", self.config_dict)
+        return _objectify("LayoutObject", self.config_dict)
 
 
 def require_env_var(name, default=None, rules=[]):
@@ -138,7 +138,7 @@ def get(base=None, config_entry="default", config_layout=None):
         return ob
 
 
-def add(name, config_entry="default"):
+def set(name, config_entry="default"):
     """
     Process external configuration data.
 
@@ -160,7 +160,7 @@ def add(name, config_entry="default"):
 
     alias_dict = _simplify(config_dict)
 
-    config_object = _objectfy("Object", config_dict, alias_dict)
+    config_object = _objectify("Object", config_dict, alias_dict)
 
     _config_ledger[config_entry] = config_object
 
@@ -184,7 +184,7 @@ def _retrieve(ob, path):
     return ob
 
 
-def _objectfy(name, element, alias_dict={}):
+def _objectify(name, element, alias_dict={}):
     """
     Transform a dictionary into an immutable python object recursively.
 
@@ -196,12 +196,12 @@ def _objectfy(name, element, alias_dict={}):
     """
     if isinstance(element, dict):
         return namedtuple("Config{}".format(samba_chassis.cap_first(name)), element.keys())(
-            *[_objectfy(i[0], i[1], alias_dict) for i in element.items()]
+            *[_objectify(i[0], i[1], alias_dict) for i in element.items()]
         )
     if isinstance(element, list):
-        return [_objectfy("ListElement", i, alias_dict) for i in element]
+        return [_objectify("ListElement", i, alias_dict) for i in element]
     if isinstance(element, tuple):
-        return [_objectfy("TupleElement", i, alias_dict) for i in element]
+        return [_objectify("TupleElement", i, alias_dict) for i in element]
     if isinstance(element, ConfigItem):
         return element.current
     try:
