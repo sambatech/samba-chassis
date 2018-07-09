@@ -1,0 +1,35 @@
+version: 2
+jobs:
+  set-workspace:
+    docker:
+      - image: circleci/python:2.7
+    working_directory: ~/samba-chassis
+    steps:
+      - checkout
+      - attach_workspace:
+          at: ~/samba-chassis
+      - persist_to_workspace:
+          root: .
+          paths: .
+
+  python-unit-test:
+    docker:
+      - image: circleci/python:2.7
+    working_directory: ~/samba-chassis/python
+    - attach_workspace:
+          at: ~/samba-chassis
+      - run:
+          name: Installing dependencies
+          command: |
+            sudo pip install pipenv
+            pipenv install -d
+            pipenv run pytest tests/unit
+
+workflows:
+  version: 2
+  main-pipeline:
+    jobs:
+      - set-workspace
+      - python-unit-test:
+          requires:
+            - set-workspace
