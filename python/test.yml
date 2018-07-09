@@ -1,0 +1,9 @@
+parA: parameter A
+parB: 13
+test1: two
+moduleC:
+  parCA: true
+  list:
+    - help: "yes"
+      lose: "no"
+    - text: .parB

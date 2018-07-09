@@ -15,13 +15,13 @@ setup(
     license="Copyright SambaTech",
     keywords="microsservices framework library",
     url="http://www.sambatech.com.br",
-    packages=['samba-chassis'],
+    packages=['samba_chassis'],
     long_description=read('README'),
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Topic :: Utilities",
         "Programming Language :: Python :: 2.7"
     ],
-    install_requires=[],
+    install_requires=["setuptools", "pyyaml"],
     python_requires=">=2.7"
 )

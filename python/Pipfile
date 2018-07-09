@@ -4,9 +4,13 @@ verify_ssl = true
 name = "pypi"
 
 [dev-packages]
+pytest = "*"
+pytest-cov = "*"
+mock = "*"
 
 [packages]
 setuptools = "*"
+pyyaml = "*"
 
 [requires]
 python_version = "2.7"
