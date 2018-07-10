@@ -67,16 +67,16 @@ def test_get():
             "t4": [4, 5, (6, 7)]
         }
     }
-    config._config_ledger["default"] = config._objectfy("Test", dictionary)
+    config._config_ledger["default"] = config._objectify("Test", dictionary)
 
     ob = config.get("t2")
     assert ob.t3 == 3
 
 
-def test_add():
+def test_set():
     config._config_ledger = {}
     os.environ = {"VARC1": 1, "VARC2": 2, "SYSTEM1": 1}
-    config.add("VAR.env")
+    config.set("VAR.env")
     ob = config._config_ledger["default"]
     assert ob.C1 == 1
 
@@ -90,7 +90,7 @@ def test_retrieve():
         }
     }
 
-    ob = config._objectfy("Test", dictionary)
+    ob = config._objectify("Test", dictionary)
     assert config._retrieve(ob, ["t2", "", "t4", "2", "0"]) == 6
 
 
@@ -100,7 +100,7 @@ def test_dict_from_env():
     assert d == {'C1': 1, 'C2': 2}
 
 
-def test_objectfy():
+def test_objectify():
     dictionary = {
         "t1": 1,
         "t2": {
@@ -109,7 +109,7 @@ def test_objectfy():
         }
     }
 
-    ob = config._objectfy("Test", dictionary)
+    ob = config._objectify("Test", dictionary)
     assert ob.t1 == 1
     assert ob.t2.t3 == 3
     assert ob.t2.t4[0] == 4
@@ -138,9 +138,9 @@ def test_alias():
         }
     }
     with pytest.warns(UserWarning):
-        ob = config._objectfy("Object", dictionary)
+        ob = config._objectify("Object", dictionary)
     assert ob.t2.t4[2][0] == ".t1"
-    ob = config._objectfy("Object", dictionary, config._simplify(dictionary))
+    ob = config._objectify("Object", dictionary, config._simplify(dictionary))
     assert ob.t2.t4[2][0] == 1
 
 
