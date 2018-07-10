@@ -8,10 +8,9 @@ updated_at: 06-JUL-2018
 
 """
 from collections import namedtuple
-import json
-import yaml
 import os
 import warnings
+import samba_chassis
 
 _config_ledger = {}
 
@@ -151,11 +150,11 @@ def add(name, config_entry="default"):
     """
     ext = name.split(".")[-1]
     if ext == "env":
-        config_dict = _dict_from_env(name.split(".")[0])
+        config_dict = samba_chassis.dict_from_env(name.split(".")[0])
     elif ext in ["json"]:
-        config_dict = _dict_from_json(name)
+        config_dict = samba_chassis.dict_from_json(name)
     elif ext in ["yml", "yaml"]:
-        config_dict = _dict_from_yaml(name)
+        config_dict = samba_chassis.dict_from_yaml(name)
     else:
         raise ValueError("File extension not supported")
 
@@ -185,33 +184,6 @@ def _retrieve(ob, path):
     return ob
 
 
-def _dict_from_env(prefix=""):
-    """
-    Return a dictionary taken from the current environment variables.
-
-    TODO: Implement hierarchy among multiple prefixes.
-    :param prefix: Prefix that determines valid variables.
-    :return: Dictionary with valid environment variable with the prefix removed.
-    """
-    r = {}
-    for key in os.environ:
-        if key.startswith(prefix):
-            r[key[len(prefix):]] = os.environ[key]
-    return r
-
-
-def _dict_from_yaml(filename):
-    """Return a dictionary taken from an YAML file."""
-    with open(filename) as config_file:
-        return yaml.load(config_file)
-
-
-def _dict_from_json(filename):
-    """Return a dictionary taken from a JSON file."""
-    with open(filename) as config_file:
-        return json.load(config_file)
-
-
 def _objectfy(name, element, alias_dict={}):
     """
     Transform a dictionary into an immutable python object recursively.
@@ -223,7 +195,7 @@ def _objectfy(name, element, alias_dict={}):
     :return: an object sub-structure.
     """
     if isinstance(element, dict):
-        return namedtuple("Config{}".format(_cap_first(name)), element.keys())(
+        return namedtuple("Config{}".format(samba_chassis.cap_first(name)), element.keys())(
             *[_objectfy(i[0], i[1], alias_dict) for i in element.items()]
         )
     if isinstance(element, list):
@@ -261,14 +233,5 @@ def _simplify(element, name=""):
         s[name] = element
     return s
 
-
-def _cap_first(line):
-    """
-    Capitalize the first letter of each word in snake case format.
-
-    :param line: snake case format line of characters
-    :return: the good stuff
-    """
-    return ''.join(s[:1].upper() + s[1:] for s in line.split('_'))
 
 
