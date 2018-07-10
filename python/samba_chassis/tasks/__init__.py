@@ -34,6 +34,110 @@ from samba_chassis import logging, config
 from samba_chassis.tasks.execs import TaskExecution
 from samba_chassis.tasks.queues import QueueHandler
 from samba_chassis.tasks.schedulers import TaskScheduler
+
+
+class Task(object):
+    """Task representation that defines a task and its operations."""
+    _logger = logging.get(__name__)
+
+    _progressions = {
+        "NONE": lambda wait_time, retries: 0 if retries == 0 else int(wait_time),
+        "GEOMETRIC": lambda wait_time, retries: int(wait_time * math.pow(retries, 2)),
+        "ARITHMETIC": lambda wait_time, retries: int(wait_time * retries),
+        "RANDOM": lambda wait_time, retries: 0 if retries == 0 else int(wait_time * random.uniform(0.5, 2.0))
+    }
+
+    @staticmethod
+    def send(task_name, attr, queue_handler, delay=0, exec_id=None, when=None):
+        """
+        Send a task execution command to queue handler for the selected task.
+
+        :param task_name: Task's name.
+        :param attr: Attributes to be passed as arguments.
+        :param queue_handler: Queue to send task execution command to.
+        :param delay: Time delay before sending command.
+        :param exec_id: Command id.
+        :param when: Datetime that tells when can the task execute.
+        """
+        queue_handler.send(task_name, attr, delay, exec_id, when)
+
+    def __init__(self, name, func, queue_handler, max_retries=10, on_fail=None, wait_time=0, wait_progression="NONE"):
+        """
+        Initiate task.
+
+        :param name: Task's name.
+        :param func: Task's function.
+        :param queue_handler: Queue to be associated with this task.
+        :param max_retries: Maximum number of retries possible.
+        :param on_fail: Task to be ran upon task failure.
+        :param wait_time: Time to wait between first retry.
+        :param wait_progression: Wait time progression after first retry.
+        """
+        self.name = name
+        self.func = func
+        self.queue_handler = queue_handler
+        self.max_retries = max_retries
+        self.on_fail = on_fail
+        self.wait_time = wait_time
+        if wait_progression not in self._progressions:
+            self._logger.error("INVALID_PROGRESSION")
+            raise ValueError("INVALID_PROGRESSION")
+        self.wait_progression = wait_progression
+
+    def get_delay(self, retries=0):
+        """
+        Return delay before next retry.
+
+        :param retries: Number of retries already done.
+        :return: Next delay.
+        """
+        return self._progressions[self.wait_progression](self.wait_time, retries)
+
+    def issue(self, attr, delay=0, exec_id=None, when=None):
+        """
+        Issue task execution command to the queue handler.
+
+        :param attr: Attributes to be passed as arguments.
+        :param delay: Delay in seconds.
+        :param exec_id: Command id.
+        :param when: Datetime that tells when can the task execute.
+        """
+        self.queue_handler.send(self.name, attr, delay, exec_id, when)
+
+    def issue_fail(self, attr):
+        """
+        Issues the on_fail task.
+
+        :param attr: Attributes to be passed as arguments.
+        """
+        if isinstance(self.on_fail, tuple):
+            self.send(self.on_fail[0], attr, self.on_fail[1])
+        else:
+            self.send(self.on_fail, attr, self.queue_handler)
+
+    def run(self, attr, retries=0):
+        """
+        Run task.
+
+        :param attr: Dictionary with task attributes (data to be used by task).
+        :param retries: Number of retries already performed in this command.
+        :return: True if successful, false otherwise.
+        """
+        if int(retries) >= self.max_retries:
+            try:
+                self._logger.error("TASK_FAILED: {}/{} retries".format(retries, self.max_retries), attr=attr)
+                self.issue_fail(attr)
+            finally:
+                return True
+
+        try:
+            res = self.func(attr)
+            return res if res is not None else True
+        except:
+            self._logger.exception("ERROR_RUNNING_TASK")
+            return False
+
+
 #
 # Attributes
 #
@@ -94,6 +198,10 @@ config_layout = config.ConfigLayout({
         rules=[lambda x: True if x > 0 else False]
     ),
 })
+
+
+class ConfigurationError(RuntimeError):
+    pass
 
 
 #
@@ -253,113 +361,6 @@ def ready():
     else:
         r["TASK_SCHEDULER"] = "ERROR"
     return r
-
-
-class ConfigurationError(RuntimeError):
-    pass
-
-
-class Task(object):
-    """Task representation that defines a task and its operations."""
-    _logger = logging.get(__name__)
-
-    _progressions = {
-        "NONE": lambda wait_time, retries: 0 if retries == 0 else int(wait_time),
-        "GEOMETRIC": lambda wait_time, retries: int(wait_time * math.pow(retries, 2)),
-        "ARITHMETIC": lambda wait_time, retries: int(wait_time * retries),
-        "RANDOM": lambda wait_time, retries: 0 if retries == 0 else int(wait_time * random.uniform(0.5, 2.0))
-    }
-
-    @staticmethod
-    def send(task_name, attr, queue_handler, delay=0, exec_id=None, when=None):
-        """
-        Send a task execution command to queue handler for the selected task.
-
-        :param task_name: Task's name.
-        :param attr: Attributes to be passed as arguments.
-        :param queue_handler: Queue to send task execution command to.
-        :param delay: Time delay before sending command.
-        :param exec_id: Command id.
-        :param when: Datetime that tells when can the task execute.
-        """
-        queue_handler.send(task_name, attr, delay, exec_id, when)
-
-    def __init__(self, name, func, queue_handler, max_retries=10, on_fail=None, wait_time=0, wait_progression="NONE"):
-        """
-        Initiate task.
-
-        :param name: Task's name.
-        :param func: Task's function.
-        :param queue_handler: Queue to be associated with this task.
-        :param max_retries: Maximum number of retries possible.
-        :param on_fail: Task to be ran upon task failure.
-        :param wait_time: Time to wait between first retry.
-        :param wait_progression: Wait time progression after first retry.
-        """
-        self.name = name
-        self.func = func
-        self.queue_handler = queue_handler
-        self.max_retries = max_retries
-        self.on_fail = on_fail
-        self.wait_time = wait_time
-        if wait_progression not in self._progressions:
-            self._logger.error("INVALID_PROGRESSION")
-            raise ValueError("INVALID_PROGRESSION")
-        self.wait_progression = wait_progression
-
-    def get_delay(self, retries=0):
-        """
-        Return delay before next retry.
-
-        :param retries: Number of retries already done.
-        :return: Next delay.
-        """
-        return self._progressions[self.wait_progression](self.wait_time, retries)
-
-    def issue(self, attr, delay=0, exec_id=None, when=None):
-        """
-        Issue task execution command to the queue handler.
-
-        :param attr: Attributes to be passed as arguments.
-        :param delay: Delay in seconds.
-        :param exec_id: Command id.
-        :param when: Datetime that tells when can the task execute.
-        """
-        self.queue_handler.send(self.name, attr, delay, exec_id, when)
-
-    def issue_fail(self, attr):
-        """
-        Issues the on_fail task.
-
-        :param attr: Attributes to be passed as arguments.
-        """
-        if isinstance(self.on_fail, tuple):
-            self.send(self.on_fail[0], attr, self.on_fail[1])
-        else:
-            self.send(self.on_fail, attr, self.queue_handler)
-
-    def run(self, attr, retries=0):
-        """
-        Run task.
-
-        :param attr: Dictionary with task attributes (data to be used by task).
-        :param retries: Number of retries already performed in this command.
-        :return: True if successful, false otherwise.
-        """
-        if int(retries) >= self.max_retries:
-            try:
-                self._logger.error("TASK_FAILED: {}/{} retries".format(retries, self.max_retries), attr=attr)
-                self.issue_fail(attr)
-            finally:
-                return True
-
-        try:
-            res = self.func(attr)
-            return res if res is not None else True
-        except:
-            self._logger.exception("ERROR_RUNNING_TASK")
-            return False
-
 
 #
 # Classes to use on module functions
