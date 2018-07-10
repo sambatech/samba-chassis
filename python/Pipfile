@@ -11,6 +11,7 @@ mock = "*"
 [packages]
 setuptools = "*"
 pyyaml = "*"
+"boto3" = "*"
 
 [requires]
 python_version = "2.7"
