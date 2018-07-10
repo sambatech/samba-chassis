@@ -27,16 +27,13 @@ with its proper configuration.
 It is possible to define custom values for the maximum of times a work can fail
 or throw an error.
 """
-import boto3
-import threading
 import warnings
 import random
-import json
 import math
-import uuid
-import time
-from datetime import datetime, timedelta
 from samba_chassis import logging, config
+from samba_chassis.tasks.execs import TaskExecution
+from samba_chassis.tasks.queues import QueueHandler
+from samba_chassis.tasks.schedulers import TaskScheduler
 #
 # Attributes
 #
@@ -258,147 +255,14 @@ def ready():
     return r
 
 
-#
-# Auxiliary constructs
-#
-
-def _enum(*sequential, **named):
-    """
-    Enum creation function.
-
-    :param sequential: Arguments for a sequential enum;
-    :param named:
-    :return: Returns enumerator.
-    """
-    enums = dict(zip(sequential, range(len(sequential))), **named)
-    return type('Enum', (), enums)
-
-
 class ConfigurationError(RuntimeError):
     pass
 
 
-class QueueHandler(object):
-    """Queue handler responsible to communicate with SQS, send and retrieve tasks."""
-    _sqs_client = None
-    _sqs = None
-
-    def __init__(self, queue_name, task_timeout=120):
-        """
-        Take queue name and create SQS connection.
-
-        :param queue_name: SQS queue name.
-        :param task_timeout: Seconds for message processing deadline.
-        """
-        _logger.debug("Creating queue handler {}".format(queue_name))
-        self.queue_name = queue_name
-        self.queue = None
-        self.task_timeout = task_timeout
-
-    def connect(self):
-        # Setup sqs if yet not set
-        if self._sqs_client is None:
-            self._sqs_client = boto3.client('sqs')
-        if self._sqs is None:
-            self._sqs = boto3.resource('sqs')
-        # Setup queue if yet not set
-        if self.queue is None:
-            # Create queue if necessary
-            try:
-                self.queue = self._sqs.get_queue_by_name(QueueName=self.queue_name)
-            except self._sqs_client.exceptions.QueueDoesNotExist:
-                _logger.info("CREATING_QUEUE_IN_AWS: {}".format(self.queue_name))
-                self.queue = self._sqs.create_queue(
-                    QueueName=self.queue_name,
-                    Attributes={
-                        "ReceiveMessageWaitTimeSeconds": "2",
-                        "VisibilityTimeout": "120"
-                    }
-                )
-
-    def send(self, task_name, task_attr, delay=0, exec_id=None, when=None):
-        """
-        Send task to SQS queue.
-
-        :param task_name: Task name.
-        :param task_attr: Task attributes in dict form.
-        :param delay: Time in seconds for the task to become available for execution.
-        :param exec_id: Task execution command id.
-        :param when: Datetime that tells when can the task execute.
-        """
-        self.connect()
-        _logger.debug("Sending task {}".format(task_name))
-        self.queue.send_message(
-            MessageBody=json.dumps(task_attr),
-            DelaySeconds=delay,
-            MessageAttributes={
-                "task_name": {'StringValue': task_name, 'DataType': 'String'},
-                "exec_id": {'StringValue': str(uuid.uuid4()) if exec_id is None else exec_id, 'DataType': 'String'},
-                "when": {
-                    'StringValue': datetime.utcnow().strftime("%d/%m/%y %H:%M:%S") if when is None else when.strftime("%d/%m/%y %H:%M:%S"),
-                    'DataType': 'String'
-                }
-            }
-        )
-
-    def queue_len(self):
-        self.connect()
-        self.queue.load()
-        return int(self.queue.attributes["ApproximateNumberOfMessages"])
-
-    def retrieve(self, max_number=1):
-        """
-        Retrieve at most max_number messages.
-
-        :param max_number: Maximum number of messages to be returned.
-        :return: Retrieved messages.
-        """
-        self.connect()
-        _logger.debug("Retrieving {} messages".format(max_number))
-        # Check max number limit
-        if max_number > 10:
-            max_number = 10
-            warnings.warn("Tried to retrieve more than 10 messages")
-
-        messages = self.queue.receive_messages(
-            AttributeNames=[
-                'ApproximateReceiveCount',
-                'SentTimestamp'
-            ],
-            MessageAttributeNames=['All'],
-            MaxNumberOfMessages=max_number,
-            VisibilityTimeout=self.task_timeout,
-            WaitTimeSeconds=1
-        )
-        return messages
-
-    @staticmethod
-    def done(message):
-        """
-        Delete message from queue service.
-
-        :param message: Message to be deleted.
-        """
-        message.delete()
-
-    @staticmethod
-    def postpone(message, new_timeout):
-        """
-        Postpone message visibility timeline.
-
-        :param message: Message to postpone.
-        :param new_timeout: New deadline to set.
-        """
-        try:
-            message.change_visibility(VisibilityTimeout=int(new_timeout))
-            return True
-        except:
-            _logger.exception("VISIBILITY_CHANGE_FAILURE")
-            return False
-
-
 class Task(object):
     """Task representation that defines a task and its operations."""
+    _logger = logging.get(__name__)
+
     _progressions = {
         "NONE": lambda wait_time, retries: 0 if retries == 0 else int(wait_time),
         "GEOMETRIC": lambda wait_time, retries: int(wait_time * math.pow(retries, 2)),
@@ -439,7 +303,7 @@ class Task(object):
         self.on_fail = on_fail
         self.wait_time = wait_time
         if wait_progression not in self._progressions:
-            _logger.error("INVALID_PROGRESSION")
+            self._logger.error("INVALID_PROGRESSION")
             raise ValueError("INVALID_PROGRESSION")
         self.wait_progression = wait_progression
 
@@ -484,7 +348,7 @@ class Task(object):
         """
         if int(retries) >= self.max_retries:
             try:
-                _logger.error("TASK_FAILED: {}/{} retries".format(retries, self.max_retries), attr=attr)
+                self._logger.error("TASK_FAILED: {}/{} retries".format(retries, self.max_retries), attr=attr)
                 self.issue_fail(attr)
             finally:
                 return True
@@ -493,302 +357,8 @@ class Task(object):
             res = self.func(attr)
             return res if res is not None else True
         except:
-            _logger.exception("ERROR_RUNNING_TASK")
+            self._logger.exception("ERROR_RUNNING_TASK")
             return False
-
-
-class TaskExecution(object):
-    """Encapsulation of a task execution command."""
-    def __init__(self, exec_id, task, attr, attempts, created_at, message, timeout):
-        """
-        Initiate object.
-
-        :param exec_id: Command id.
-        :param task: Task to be executed.
-        :param attr: Attributes to be passed as arguments.
-        :param attempts: Number of attempts already made.
-        :param created_at: Datetime of creation.
-        :param message: Queue message issuing the execution command.
-        :param timeout: Command timeout.
-        """
-        self.exec_id = exec_id
-        self.task = task
-        self.attr = attr
-        self.attempts = attempts
-        self.created_at = created_at
-        self.message = message
-        self.timeout = timeout
-        self.results = None
-        self.thread = None
-        self.disabled = False
-        self.postpone_num = 0
-
-    def execute(self):
-        """Run task."""
-        res = self.task.run(self.attr, self.attempts - 1)
-        if not self.disabled:
-            self.results = res
-
-    def get_deadline(self):
-        """Return execution command deadline."""
-        return self.created_at + timedelta(seconds=int(self.timeout / 2) * (self.postpone_num + 1))
-
-    def postpone(self, queue_handler):
-        """Postpone execution command deadline."""
-        new_timeout = int(math.ceil((self.get_deadline() - datetime.utcnow()).total_seconds())) + self.timeout
-        _logger.info("POSTPONE: {} for {} {}".format(new_timeout, self.task.name, self.exec_id))
-        return queue_handler.postpone(self.message, new_timeout)
-
-
-class TaskScheduler(object):
-    """Scheduler that runs tasks and monitor their execution."""
-    statuses = _enum("STOPPED", "STOPPING", "RUNNING", "ERROR")
-
-    def __init__(self, queue_handler, task_map, workers=1, unknown_tasks_retries=10,
-                 unknown_tasks_delay=10, task_execution_class=TaskExecution, max_workers=None,
-                 scale_factor=100, when_window=60):
-        """
-        Initiate scheduler.
-
-        :param queue_handler: Queue to receive and send task commands.
-        :param task_map: Map containing all registered tasks.
-        :param workers: Number of concurrent tasks to be ran by this scheduler.
-        :param unknown_tasks_retries: Number of max retries for unknown tasks messages.
-        :param unknown_tasks_delay: Delay for retrying unknown tasks messages.
-        :param task_execution_class: Class to use for task exec commands.
-        :param max_workers: Max number of workers for dynamic scaling. If None, scaling is off.
-        :param when_window: Time in seconds to offset datetime defined executions.
-        """
-        self.queue_handler = queue_handler
-        self.task_map = task_map
-        self.workers = workers
-        self.def_workers = workers
-        self.max_workers = max_workers
-        self.unknown_tasks_retries = unknown_tasks_retries
-        self.unknown_tasks_delay = unknown_tasks_delay
-        self.scale_factor = scale_factor
-
-        self._task_execution_class = task_execution_class
-
-        self.scheduler_thread = None
-
-        self._status_lock = threading.Lock()
-        self.status = self.statuses.STOPPED
-
-        self._on_going_lock = threading.Lock()
-        self._on_going_tasks = {}
-        self.when_window = when_window
-
-    def start(self):
-        """Start scheduler."""
-        _logger.info("STARTING_TASK_SCHEDULER")
-        if self.status == self.statuses.STOPPED:
-            if self.scheduler_thread is not None and self.scheduler_thread.is_alive():
-                # wait for thread to die
-                while self.scheduler_thread.is_alive():
-                    time.sleep(1)
-
-            self.status = self.statuses.RUNNING
-            self.scheduler_thread = threading.Thread(target=self.loop)
-            self.scheduler_thread.start()
-            return
-
-        with self._status_lock:
-            if self.status == self.statuses.STOPPING:
-                self.status = self.statuses.RUNNING
-
-    def stop(self, force=False):
-        """
-        Stop the scheduler.
-
-        :param force: Flag that determines whether to stop immediately or wait for current task to stop.
-        """
-        _logger.info("STOPPING_TASK_SCHEDULER")
-        if force:
-            self.status = self.statuses.STOPPED
-        else:
-            self.status = self.statuses.STOPPING
-
-    def loop(self):
-        """Main loop for monitoring thread."""
-        _logger.debug("Entering loop with status {}".format(self.status))
-        while self.status != self.statuses.STOPPED:
-            with self._on_going_lock:
-                _logger.debug("{} tasks executing".format(len(self._on_going_tasks)))
-                # Monitor and process ongoing tasks.
-                self._process_on_going_tasks()
-                # Stop scheduler if it is stopping and there are no more on going tasks.
-                with self._status_lock:
-                    if len(self._on_going_tasks) == 0 and self.status == self.statuses.STOPPING:
-                        self.status = self.statuses.STOPPED
-                # Check if should scale number of workers
-                self._process_scaling()
-                # Get new tasks if scheduler is running and there are less on going tasks than max.
-                if len(self._on_going_tasks) < self.workers and self.status == self.statuses.RUNNING:
-                    tasks = self._get_new_tasks(self.workers - len(self._on_going_tasks))
-                    self._run_tasks(tasks)
-            # Sleep for one second
-            time.sleep(1)
-        _logger.debug("Getting out of loop")
-        self.status = self.statuses.STOPPED
-
-    def _process_scaling(self):
-        """Scale number of workers if enabled and queue len is greater or lower than limit."""
-        if self.max_workers is None:
-            return
-        try:
-            num_tasks = self.queue_handler.queue_len()
-            upper_limit = self.workers*self.scale_factor + int(self.scale_factor/2)
-            lower_limit = self.workers * self.scale_factor - int(self.scale_factor / 2)
-            if num_tasks > upper_limit and self.workers < self.max_workers:
-                self.workers += 1
-            elif num_tasks < lower_limit and self.workers > self.def_workers:
-                self.workers -= 1
-        except:
-            _logger.exception("SCALING_ERROR")
-
-    def _process_on_going_tasks(self):
-        """Monitor and process on going tasks."""
-        bye_bye_tasks = []
-        for exec_id in self._on_going_tasks:
-            task_exec = self._on_going_tasks[exec_id]
-            # Check if done
-            if task_exec.results is not None:
-                # Process results
-                self._process_task_results(task_exec, bye_bye_tasks)
-                continue
-            if not task_exec.thread.is_alive():
-                # Thread finished without results, that's not good :(
-                self._process_dead_thread(task_exec, bye_bye_tasks)
-                continue
-            # Check if outdated
-            if datetime.utcnow() > task_exec.get_deadline():
-                # Postpone deadline
-                if not task_exec.postpone(self.queue_handler):
-                    self._postpone_failed(task_exec, bye_bye_tasks)
-        # Bye bye
-        for exec_id in bye_bye_tasks:
-            del self._on_going_tasks[exec_id]
-
-    def _postpone_failed(self, task_exec, bye_bye_tasks):
-        """Process failed postpone call."""
-        _logger.error("POSTPONE_FAILURE: {} {}".format(task_exec.task.name, task_exec.exec_id))
-        # If postpone failed, resend message
-        task_exec.task.issue(task_exec.attr, 0, task_exec.exec_id)
-        # Disable
-        task_exec.disabled = True
-        # Delete original one
-        self.queue_handler.done(task_exec.message)
-        bye_bye_tasks.append(task_exec.exec_id)
-
-    def _process_task_results(self, task_exec, bye_bye_tasks):
-        """Process results."""
-        # Results is either true or false
-        if task_exec.results is True:
-            # The task was a great success!
-            self.queue_handler.done(task_exec.message)
-        elif task_exec.results is False:
-            # Task failed, calc visibility delay
-            vis_delay = (datetime.utcnow() - task_exec.created_at).total_seconds() + \
-                        task_exec.task.get_delay(task_exec.attempts)
-            # Postpone message
-            self.queue_handler.postpone(task_exec.message, vis_delay)
-        # Delete ongoing task
-        bye_bye_tasks.append(task_exec.exec_id)
-
-    def _process_dead_thread(self, task_exec, bye_bye_tasks):
-        """Process a dead thread to be considered a failed execution."""
-        # A dead thread is considered fail
-        _logger.error("DEAD_THREAD: {} {}".format(task_exec.task.name, task_exec.exec_id))
-        if task_exec.disabled:
-            # Delete message
-            self.queue_handler.done(task_exec.message)
-        else:
-            # Postpone message
-            vis_delay = (datetime.utcnow() - task_exec.created_at).total_seconds() + \
-                        task_exec.task.get_delay(task_exec.attempts)
-            self.queue_handler.postpone(task_exec.message, vis_delay)
-        # Delete ongoing task
-        bye_bye_tasks.append(task_exec.exec_id)
-
-    def _is_known_task(self, message):
-        """Return whether task in message is int task map."""
-        return \
-            "task_name" in message.message_attributes and \
-            "StringValue" in message.message_attributes["task_name"] and \
-            message.message_attributes["task_name"]["StringValue"] in self.task_map
-
-    def _passed_when(self, message):
-        when = datetime.strptime(message.message_attributes["when"]["StringValue"], "%d/%m/%y %H:%M:%S") \
-               - timedelta(seconds=self.when_window)
-        print "WHEN: ", when > datetime.utcnow()
-        return datetime.utcnow() > when
-
-    def _when_to_seconds(self, message):
-        when = datetime.strptime(message.message_attributes["when"]["StringValue"], "%d/%m/%y %H:%M:%S") \
-               - timedelta(seconds=self.when_window)
-        total = (when - datetime.utcnow()).total_seconds()
-        return total if total <= 18000 else 18000
-
-    def _get_new_tasks(self, num):
-        """
-        Get new tasks for execution.
-
-        TODO: Messages that are in the queue for too long should bet recreated before they expire.
-        :param num: Max number of tasks to be received.
-        """
-        # Retrieve num messages
-        messages = self.queue_handler.retrieve(num)
-        if len(messages) > 0:
-            _logger.info("RETRIEVED_TASKS: {}/{}".format(len(messages), num))
-        # Create a TaskExecution object for each message
-        tasks = []
-        for message in messages:
-            _logger.debug("Received message:  header = {} body = {}".format(message.message_attributes, message.body))
-            # Check if message has a known task
-            if not self._is_known_task(message):
-                _logger.warn(
-                    "RECEIVED_UNKNOWN_TASK: header = {} attr = {}".format(message.message_attributes, message.body)
-                )
-                if int(message.attributes['ApproximateReceiveCount']) > self.unknown_tasks_retries:
-                    self.queue_handler.done(message)
-                else:
-                    self.queue_handler.postpone(message, self.unknown_tasks_delay)
-                continue
-            # Check if the task should be executed later
-            if not self._passed_when(message):
-                # Postpone it as long as possible
-                self.queue_handler.postpone(message, self._when_to_seconds(message))
-                continue
-            tasks.append(
-                self._task_execution_class(
-                    exec_id=message.message_attributes["exec_id"]["StringValue"],
-                    task=self.task_map[message.message_attributes["task_name"]["StringValue"]],
-                    attr=json.loads(message.body),
-                    attempts=int(message.attributes['ApproximateReceiveCount']),
-                    created_at=datetime.utcnow(),
-                    message=message,
-                    timeout=self.queue_handler.task_timeout
-                )
-            )
-        # return all objects in a list
-        return tasks
-
-    def _run_tasks(self, tasks):
-        """Run tasks."""
-        for task_exec in tasks:
-            _logger.info("RUNNING_TASK: {} {}".format(task_exec.task.name, task_exec.exec_id), attr=task_exec.attr)
-            task_exec.thread = threading.Thread(target=task_exec.execute)
-            task_exec.thread.start()
-            self._on_going_tasks[task_exec.exec_id] = task_exec
-
-    def get_status(self):
-        if (
-                self.status != self.statuses.STOPPED and
-                (self.scheduler_thread is None or not self.scheduler_thread.is_alive())
-        ):
-            return self.statuses.ERROR
-        return self.status
 
 
 #

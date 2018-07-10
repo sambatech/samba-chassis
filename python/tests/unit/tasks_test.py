@@ -194,7 +194,7 @@ class TaskSchedulerTest(unittest.TestCase):
         ts.stop(force=True)
         self.assertEqual(ts.status, TaskScheduler.statuses.STOPPED)
 
-    @patch.object(tasks, "_logger")
+    @patch.object(tasks.schedulers.TaskScheduler, "_logger")
     @patch("threading.Thread")
     def test_run_tasks(self, T, l):
         qh = MagicMock()
@@ -210,7 +210,7 @@ class TaskSchedulerTest(unittest.TestCase):
         T.assert_called_with(target=te.execute)
         self.assertEqual(ts._on_going_tasks["id"], te)
 
-    @patch.object(tasks, "_logger")
+    @patch.object(tasks.schedulers.TaskScheduler, "_logger")
     @patch("datetime.datetime")
     def test_get_new_tasks(self, d, l):
         d.utcnow.return_value = "now"
@@ -240,7 +240,7 @@ class TaskSchedulerTest(unittest.TestCase):
         self.assertTrue(ts._is_known_task(MagicMock(message_attributes={"task_name": {"StringValue": "test_task"}})))
         self.assertFalse(ts._is_known_task(MagicMock(message_attributes="wrong")))
 
-    @patch.object(tasks, "_logger")
+    @patch.object(tasks.schedulers.TaskScheduler, "_logger")
     def test_process_dead_thread(self, l):
         qh = MagicMock(task_timeout=60)
         te = MagicMock(disabled=True, exec_id="id", message="message")
@@ -250,6 +250,12 @@ class TaskSchedulerTest(unittest.TestCase):
         ts._process_dead_thread(te, [])
         l.error.assert_called_once_with("DEAD_THREAD: test_task id")
         qh.done.assert_called_once_with("message")
+
+    def test_passed_when(self):
+        pass
+
+    def test_when_to_seconds(self):
+        pass
 
     def test_process_task_results(self):
         pass
