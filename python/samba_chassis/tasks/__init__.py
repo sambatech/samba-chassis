@@ -139,6 +139,13 @@ class Task(object):
 
 
 #
+# Error classes
+#
+class ConfigurationError(RuntimeError):
+    pass
+
+
+#
 # Attributes
 #
 _logger = logging.get(__name__)
@@ -147,6 +154,7 @@ _scheduler_p = None
 _queue_pool = {}
 _tasks = {}
 _config = None
+
 
 #
 # Config Layout
@@ -198,10 +206,6 @@ config_layout = config.ConfigLayout({
         rules=[lambda x: True if x > 0 else False]
     ),
 })
-
-
-class ConfigurationError(RuntimeError):
-    pass
 
 
 #
