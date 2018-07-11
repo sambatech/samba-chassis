@@ -72,7 +72,7 @@ class TaskSchedulerTest(unittest.TestCase):
         qh.retrieve.return_value = [m1, m2]
 
         res = ts._get_new_tasks(5)
-        l.warn.assert_called_once_with("RECEIVED_UNKNOWN_TASK: header = wrong attr = wrong_body")
+        l.warn.assert_called_with("RECEIVED_UNKNOWN_TASK: header = wrong attr = wrong_body")
         self.assertIsInstance(res[0], TaskExecution)
         self.assertEqual(len(res), 1)
 
@@ -95,19 +95,146 @@ class TaskSchedulerTest(unittest.TestCase):
         qh.done.assert_called_once_with("message")
 
     def test_passed_when(self):
-        pass
+        qh = MagicMock(task_timeout=60)
+        te = MagicMock(disabled=True, exec_id="id", message="message")
+        te.task.name = "test_task"
+        ts = TaskScheduler(qh, {"test_task": MagicMock()}, max_workers=2, when_window=60)
+        m = MagicMock(
+            message_attributes={
+                "when": {
+                    "StringValue": (datetime.utcnow() + timedelta(seconds=30)).strftime("%d/%m/%y %H:%M:%S")
+                }
+            }
+        )
+        self.assertTrue(ts._passed_when(m))
+        m = MagicMock(
+            message_attributes={
+                "when": {
+                    "StringValue": (datetime.utcnow() + timedelta(seconds=90)).strftime("%d/%m/%y %H:%M:%S")
+                }
+            }
+        )
+        self.assertFalse(ts._passed_when(m))
+        with patch.object(ts, "_logger") as l:
+            now = (datetime.utcnow() - timedelta(seconds=30))
+            m = MagicMock(
+                message_attributes={
+                    "when": {
+                        "StringValue": now.strftime("%d/%m/%y %H:%M:%S")
+                    },
+                    "exec_id": {
+                        "StringValue": "test"
+                    }
+                }
+            )
+            self.assertTrue(ts._passed_when(m))
+            self.assertEqual(l.warn.call_count, 1)
 
     def test_when_to_seconds(self):
-        pass
+        qh = MagicMock(task_timeout=60)
+        te = MagicMock(disabled=True, exec_id="id", message="message")
+        te.task.name = "test_task"
+        ts = TaskScheduler(qh, {"test_task": MagicMock()}, when_window=5)
+        when = (datetime.utcnow() + timedelta(seconds=30))
+        m = MagicMock(
+            message_attributes={
+                "when": {
+                    "StringValue": when.strftime("%d/%m/%y %H:%M:%S")
+                }
+            }
+        )
+        self.assertEqual(25, ts._when_to_seconds(m))
+        when = (datetime.utcnow() + timedelta(seconds=25000))
+        m = MagicMock(
+            message_attributes={
+                "when": {
+                    "StringValue": when.strftime("%d/%m/%y %H:%M:%S")
+                }
+            }
+        )
+        self.assertEqual(18000, ts._when_to_seconds(m))
 
     def test_process_task_results(self):
-        pass
+        qh = MagicMock(task_timeout=60)
+        te = MagicMock(disabled=True, exec_id="id", message="message")
+        te.task.name = "test_task"
+        ts = TaskScheduler(qh, {"test_task": MagicMock()})
+        # Success
+        task_exec = MagicMock(results=True, exec_id="test", message="Help")
+        bt = []
+        ts._process_task_results(task_exec, bt)
+        qh.done.assert_called_once_with("Help")
+        self.assertEqual([task_exec.exec_id], bt)
+        # Failure
+        task_exec = MagicMock(results=False, exec_id="test", message="Help", created_at=datetime.utcnow(), attempts=1)
+        task_exec.task.get_delay.return_value = 10
+        bt = []
+        ts._process_task_results(task_exec, bt)
+        qh.done.assert_called_once_with("Help")
+        self.assertEqual([task_exec.exec_id], bt)
+        self.assertEqual(qh.postpone.call_count, 1)
 
     def test_postpone_failed(self):
-        pass
+        qh = MagicMock(task_timeout=60)
+        ts = TaskScheduler(qh, {"test_task": MagicMock()})
+        te = MagicMock(results=True, exec_id="test", message="Help", disabled=False, attr="attr")
+        bt = []
+        ts._postpone_failed(te, bt)
+        te.task.issue.assert_called_once_with("attr", 0, "test")
+        self.assertTrue(te.disabled)
+        qh.done.assert_called_once_with("Help")
+        self.assertEqual([te.exec_id], bt)
 
     def test_process_on_going_tasks(self):
-        pass
+        qh = MagicMock(task_timeout=60)
+        tt = MagicMock()
+        ts = TaskScheduler(qh, {"test_task": tt})
+        # Test first check
+        te = MagicMock(
+            results=True,
+            exec_id="test",
+            message="Help",
+            created_at=datetime.utcnow(),
+            attempts=1
+        )
+        ts._on_going_tasks = {
+            "test": te
+        }
+        with patch.object(ts, "_process_task_results") as p:
+            ts._process_on_going_tasks()
+            p.assert_called_once_with(te, [])
+        # Test second check
+        te = MagicMock(
+            results=None,
+            exec_id="test",
+            message="Help",
+            created_at=datetime.utcnow(),
+            attempts=1
+        )
+        te.thread.is_alive.return_value = False
+        ts._on_going_tasks = {
+            "test": te
+        }
+        with patch.object(ts, "_process_dead_thread") as p:
+            ts._process_on_going_tasks()
+            p.assert_called_once_with(te, [])
+        # Test third check
+        te = MagicMock(
+            results=None,
+            exec_id="test",
+            message="Help",
+            created_at=datetime.utcnow(),
+            attempts=1
+        )
+        te.thread.is_alive.return_value = True
+        te.get_deadline.return_value = datetime.utcnow() - timedelta(seconds=30)
+        te.postpone.return_value = False
+        ts._on_going_tasks = {
+            "test": te
+        }
+        with patch.object(ts, "_postpone_failed") as p:
+            ts._process_on_going_tasks()
+            p.assert_called_once_with(te, [])
 
     def test_loop(self):
         pass
