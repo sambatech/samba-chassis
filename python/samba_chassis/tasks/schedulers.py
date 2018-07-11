@@ -265,7 +265,8 @@ class TaskScheduler(object):
     def _run_tasks(self, tasks):
         """Run tasks."""
         for task_exec in tasks:
-            self._logger.info("RUNNING_TASK: {} {}".format(task_exec.task.name, task_exec.exec_id), attr=task_exec.attr)
+            self._logger.info("RUNNING_TASK: {} {}".format(task_exec.task.name, task_exec.exec_id),
+                              extra=task_exec.attr)
             task_exec.thread = threading.Thread(target=task_exec.execute)
             task_exec.thread.start()
             self._on_going_tasks[task_exec.exec_id] = task_exec

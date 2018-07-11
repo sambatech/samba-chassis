@@ -125,7 +125,7 @@ class Task(object):
         """
         if int(retries) >= self.max_retries:
             try:
-                self._logger.error("TASK_FAILED: {}/{} retries".format(retries, self.max_retries), attr=attr)
+                self._logger.error("TASK_FAILED: {}/{} retries".format(retries, self.max_retries), extra=attr)
                 self.issue_fail(attr)
             finally:
                 return True
@@ -134,7 +134,7 @@ class Task(object):
             res = self.func(attr)
             return res if res is not None else True
         except:
-            self._logger.exception("ERROR_RUNNING_TASK")
+            self._logger.exception("ERROR_RUNNING_TASK", extra=attr)
             return False
 
 
