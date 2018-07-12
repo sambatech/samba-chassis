@@ -237,4 +237,10 @@ class TaskSchedulerTest(unittest.TestCase):
             p.assert_called_once_with(te, [])
 
     def test_loop(self):
-        pass
+        qh = MagicMock(task_timeout=60)
+        tt = MagicMock()
+        ts = TaskScheduler(qh, {"test_task": tt})
+        ts.status == ts.statuses.STOPPED
+        with patch.object(ts, "_logger") as l:
+            ts.loop()
+            l.debug.assert_called_with("Getting out of loop")

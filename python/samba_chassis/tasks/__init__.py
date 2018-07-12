@@ -232,11 +232,11 @@ def config(config_object=None):
     _logger.debug("Configured tasks module with queue {} and attributes {}".format(queue_name, _config))
 
 
-def start_scheduler(config_map=None):
+def start_scheduler(config_object=None):
     """Start module's standard scheduler."""
     # Config if necessary
-    if config_map is not None:
-        config(config_map)
+    if config_object is not None:
+        config(config_object)
 
     global _scheduler
     _logger.debug("Starting scheduler")
