@@ -25,6 +25,21 @@ jobs:
             sudo pip install pipenv
             pipenv install -d
             pipenv run pytest tests/unit
+  sonar-analysis:
+    docker:
+      - image: circleci/openjdk:8-jdk-browsers
+    working_directory: ~/samba-chassis/python
+    steps:
+      - attach_workspace:
+          at: ~/samba-chassis
+      - run:
+          name: Sonar analysis
+          command: |
+            curl --header "Authorization:token $GITHUB_USER_TOKEN" --header "Accept:application/vnd.github.v3.raw" --remote-name --location https://raw.githubusercontent.com/sambatech/devops/master/circle-ci/run-sonar.sh
+            chmod a+x run-sonar.sh
+            ./run-sonar.sh install
+            ./run-sonar.sh run
+            rm -rf test-reports
 
 workflows:
   version: 2
