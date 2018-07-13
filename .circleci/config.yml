@@ -49,3 +49,6 @@ workflows:
       - python-unit-test:
           requires:
             - set-workspace
+      - sonar-analysis:
+          requires:
+            - python-unit-test
