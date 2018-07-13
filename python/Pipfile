@@ -12,6 +12,7 @@ mock = "*"
 setuptools = "*"
 pyyaml = "*"
 "boto3" = "*"
+sqlalchemy = "*"
 
 [requires]
 python_version = "2.7"
