@@ -9,6 +9,7 @@ updated_at: 10-JUL-2018
 import threading
 import json
 import time
+import math
 from datetime import datetime, timedelta
 from samba_chassis import logging
 from samba_chassis.tasks.execs import TaskExecution
@@ -180,7 +181,7 @@ class TaskScheduler(object):
             vis_delay = (datetime.utcnow() - task_exec.created_at).total_seconds() + \
                         task_exec.task.get_delay(task_exec.attempts)
             # Postpone message
-            self.queue_handler.postpone(task_exec.message, vis_delay)
+            self.queue_handler.postpone(task_exec.message, int(vis_delay))
         # Delete ongoing task
         bye_bye_tasks.append(task_exec.exec_id)
 
@@ -207,16 +208,21 @@ class TaskScheduler(object):
             message.message_attributes["task_name"]["StringValue"] in self.task_map
 
     def _passed_when(self, message):
-        when = datetime.strptime(message.message_attributes["when"]["StringValue"], "%d/%m/%y %H:%M:%S") \
-               - timedelta(seconds=self.when_window)
-        print "WHEN: ", when > datetime.utcnow()
+        when = datetime.strptime(message.message_attributes["when"]["StringValue"], "%d/%m/%y %H:%M:%S")
+        if datetime.utcnow() > when:
+            self._logger.warn(
+                "EXEC_PASSED_DUE_DATE: {} ({})>({})".format(
+                    message.message_attributes["exec_id"]["StringValue"], datetime.utcnow(), when
+                )
+            )
+        when -= timedelta(seconds=self.when_window)
         return datetime.utcnow() > when
 
     def _when_to_seconds(self, message):
         when = datetime.strptime(message.message_attributes["when"]["StringValue"], "%d/%m/%y %H:%M:%S") \
                - timedelta(seconds=self.when_window)
         total = (when - datetime.utcnow()).total_seconds()
-        return total if total <= 18000 else 18000
+        return math.ceil(total) if total <= 18000 else 18000
 
     def _get_new_tasks(self, num):
         """
@@ -265,7 +271,8 @@ class TaskScheduler(object):
     def _run_tasks(self, tasks):
         """Run tasks."""
         for task_exec in tasks:
-            self._logger.info("RUNNING_TASK: {} {}".format(task_exec.task.name, task_exec.exec_id), attr=task_exec.attr)
+            self._logger.info("RUNNING_TASK: {} {}".format(task_exec.task.name, task_exec.exec_id),
+                              extra=task_exec.attr)
             task_exec.thread = threading.Thread(target=task_exec.execute)
             task_exec.thread.start()
             self._on_going_tasks[task_exec.exec_id] = task_exec
