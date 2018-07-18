@@ -62,7 +62,6 @@ class ConfigLayout(object):
         """
         self.config_dict = config_dict
         self.simple_dict = _simplify(config_dict)
-        print "S:", self.simple_dict
 
     def get(self, config_object=None, base=None, config_entry="default"):
         """
