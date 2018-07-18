@@ -1,5 +1,5 @@
 import os
-from setuptools import setup
+from setuptools import setup, find_packages
 
 
 def read(fname):
@@ -15,7 +15,7 @@ setup(
     license="Copyright SambaTech",
     keywords="microsservices framework library",
     url="http://www.sambatech.com.br",
-    packages=['samba_chassis'],
+    packages=find_packages(),
     long_description=read('README'),
     classifiers=[
         "Development Status :: 3 - Alpha",
