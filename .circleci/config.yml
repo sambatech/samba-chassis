@@ -43,7 +43,7 @@ jobs:
             ./run-sonar.sh install
             ./run-sonar.sh run
             rm -rf test-reports
-            ls python
+            ls
 workflows:
   version: 2
   main-pipeline:
