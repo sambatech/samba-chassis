@@ -24,7 +24,6 @@ jobs:
             sudo pip install pipenv
             pipenv install -d
             pipenv run pytest tests/unit
-            touch blaa.txt
       - persist_to_workspace:
           root: .
           paths: .
@@ -43,7 +42,6 @@ jobs:
             ./run-sonar.sh install
             ./run-sonar.sh run
             rm -rf test-reports
-            ls
 workflows:
   version: 2
   main-pipeline:
