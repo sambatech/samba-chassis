@@ -121,13 +121,13 @@ class ModuleTest(unittest.TestCase):
         tasks._config.project = "test"
         tasks.run("test", {"one": 1}, service_name=None, project_name=None, when="23/02/1990 14:00:00")
         tasks._task_class.send.assert_called_once_with(
-            "test", {"one": 1}, qh, "23/02/1990 14:00:00"
+            "test", {"one": 1}, qh, when="23/02/1990 14:00:00"
         )
 
         tasks.run("test", {"one": 1}, service_name="other", project_name="test", when="23/02/1990 14:00:00")
         tasks._queue_class.assert_called_with("test_other")
         tasks._task_class.send.assert_called_with(
-            "test", {"one": 1}, tasks._queue_pool["test_other"], "23/02/1990 14:00:00"
+            "test", {"one": 1}, tasks._queue_pool["test_other"], when="23/02/1990 14:00:00"
         )
 
         tasks._tasks = {}
