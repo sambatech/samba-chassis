@@ -7,7 +7,7 @@ created_at: 11-JUN-2018
 updated_at: 11-JUL-2018
 """
 from samba_chassis import tasks
-from samba_chassis.tasks.schedulers import TaskScheduler
+from samba_chassis.tasks.consumers import TaskConsumer
 from mock import MagicMock, patch, ANY
 import unittest
 import warnings
@@ -37,10 +37,10 @@ class ModuleTest(unittest.TestCase):
 
     @patch.object(tasks, "_logger")
     @patch.object(tasks, "_config")
-    @patch.object(tasks, "_scheduler")
-    @patch.object(tasks, "_scheduler_class")
+    @patch.object(tasks, "_consumer")
+    @patch.object(tasks, "_consumer_class")
     @patch.object(tasks, "_queue_pool")
-    def test_start_scheduler(self, *_):
+    def test_start_consumer(self, *_):
         tasks._config.name = "tasks"
         tasks._config.project = "test"
         tasks._config.workers = 1
@@ -49,10 +49,10 @@ class ModuleTest(unittest.TestCase):
         tasks._config.max_workers = 4
         tasks._config.scale_factor = 5
         tasks._config.when_window = 6
-        tasks._scheduler = None
-        tasks.start_scheduler()
-        tasks._logger.debug.assert_called_once_with("Starting scheduler")
-        tasks._scheduler_class.assert_called_once_with(
+        tasks._consumer = None
+        tasks.start_consumer()
+        tasks._logger.debug.assert_called_once_with("Starting consumer")
+        tasks._consumer_class.assert_called_once_with(
             tasks._queue_pool["test_tasks"],
             tasks._tasks,
             workers=1,
@@ -64,32 +64,32 @@ class ModuleTest(unittest.TestCase):
         )
 
     @patch.object(tasks, "_logger")
-    @patch.object(tasks, "_scheduler")
-    def test_stop_scheduler(self, *_):
-        tasks._scheduler.status = TaskScheduler.statuses.RUNNING
-        tasks._scheduler_class = TaskScheduler
-        tasks.stop_scheduler()
-        tasks._logger.debug.assert_called_once_with("Stopping scheduler")
-        tasks._scheduler.stop.assert_called_once_with(force=False)
+    @patch.object(tasks, "_consumer")
+    def test_stop_consumer(self, *_):
+        tasks._consumer.status = TaskConsumer.statuses.RUNNING
+        tasks._consumer_class = TaskConsumer
+        tasks.stop_consumer()
+        tasks._logger.debug.assert_called_once_with("Stopping consumer")
+        tasks._consumer.stop.assert_called_once_with(force=False)
 
-        tasks._scheduler = None
+        tasks._consumer = None
         with self.assertRaises(RuntimeError):
-            tasks.stop_scheduler()
+            tasks.stop_consumer()
 
-    @patch.object(tasks, "_scheduler")
-    def test_is_scheduler_running(self, *_):
-        tasks._scheduler.status = TaskScheduler.statuses.RUNNING
-        self.assertTrue(tasks.is_scheduler_running())
+    @patch.object(tasks, "_consumer")
+    def test_is_consumer_running(self, *_):
+        tasks._consumer.status = TaskConsumer.statuses.RUNNING
+        self.assertTrue(tasks.is_consumer_running())
 
-        tasks._scheduler.status = tasks._scheduler_class.statuses.STOPPING
-        self.assertTrue(tasks.is_scheduler_running())
+        tasks._consumer.status = TaskConsumer.statuses.STOPPING
+        self.assertTrue(tasks.is_consumer_running())
 
-        tasks._scheduler.status = tasks._scheduler_class.statuses.STOPPED
-        self.assertFalse(tasks.is_scheduler_running())
+        tasks._consumer.status = TaskConsumer.statuses.STOPPED
+        self.assertFalse(tasks.is_consumer_running())
 
-        tasks._scheduler = None
+        tasks._consumer = None
         with self.assertRaises(RuntimeError):
-            tasks.is_scheduler_running()
+            tasks.is_consumer_running()
 
     @patch.object(tasks, "_logger")
     @patch.object(tasks, "_tasks")
@@ -135,15 +135,15 @@ class ModuleTest(unittest.TestCase):
             tasks.run("test", {"one": 1}, service_name=None, project_name=None, when="23/02/1990 14:00:00")
 
     @patch.object(tasks, "_queue_pool")
-    @patch.object(tasks, "_scheduler")
+    @patch.object(tasks, "_consumer")
     def test_ready(self, *_):
-        tasks._scheduler.get_status.return_value = TaskScheduler.statuses.RUNNING
+        tasks._consumer.get_status.return_value = TaskConsumer.statuses.RUNNING
         tasks._queue_pool = {"test": MagicMock()}
-        self.assertEqual(tasks.ready(), {"TASK_QUEUES": "OK", "TASK_SCHEDULER": "OK"})
+        self.assertEqual(tasks.ready(), {"TASK_QUEUES": "OK", "TASK_CONSUMER": "OK"})
 
-        tasks._scheduler = None
+        tasks._consumer = None
         tasks._queue_pool = {}
-        self.assertEqual(tasks.ready(), {"TASK_QUEUES": "ERROR", "TASK_SCHEDULER": "ERROR"})
+        self.assertEqual(tasks.ready(), {"TASK_QUEUES": "ERROR", "TASK_CONSUMER": "ERROR"})
 
     def test_task_class(self):
         tasks._task_class = None
@@ -151,11 +151,11 @@ class ModuleTest(unittest.TestCase):
         self.assertEqual(tasks._task_class, "Class")
         self.assertEqual(tasks.get_task_class(), "Class")
 
-    def test_scheduler_class(self):
-        tasks._scheduler_class = None
-        tasks.set_scheduler_class("Class")
-        self.assertEqual(tasks._scheduler_class, "Class")
-        self.assertEqual(tasks.get_scheduler_class(), "Class")
+    def test_consumer_class(self):
+        tasks._consumer_class = None
+        tasks.set_consumer_class("Class")
+        self.assertEqual(tasks._consumer_class, "Class")
+        self.assertEqual(tasks.get_consumer_class(), "Class")
 
     def test_queue_class(self):
         tasks._queue_class = None

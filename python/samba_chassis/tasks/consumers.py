@@ -27,8 +27,8 @@ def _enum(*sequential, **named):
     return type('Enum', (), enums)
 
 
-class TaskScheduler(object):
-    """Scheduler that runs tasks and monitor their execution."""
+class TaskConsumer(object):
+    """Consumer that runs tasks and monitor their execution."""
     _logger = logging.get(__name__)
 
     statuses = _enum("STOPPED", "STOPPING", "RUNNING", "ERROR")
@@ -37,11 +37,11 @@ class TaskScheduler(object):
                  unknown_tasks_delay=10, task_execution_class=TaskExecution, max_workers=None,
                  scale_factor=100, when_window=60):
         """
-        Initiate scheduler.
+        Initiate consumer.
 
         :param queue_handler: Queue to receive and send task commands.
         :param task_map: Map containing all registered tasks.
-        :param workers: Number of concurrent tasks to be ran by this scheduler.
+        :param workers: Number of concurrent tasks to be ran by this consumer.
         :param unknown_tasks_retries: Number of max retries for unknown tasks messages.
         :param unknown_tasks_delay: Delay for retrying unknown tasks messages.
         :param task_execution_class: Class to use for task exec commands.
@@ -59,7 +59,7 @@ class TaskScheduler(object):
 
         self._task_execution_class = task_execution_class
 
-        self.scheduler_thread = None
+        self.consumer_thread = None
 
         self._status_lock = threading.Lock()
         self.status = self.statuses.STOPPED
@@ -69,17 +69,17 @@ class TaskScheduler(object):
         self.when_window = when_window
 
     def start(self):
-        """Start scheduler."""
-        self._logger.info("STARTING_TASK_SCHEDULER")
+        """Start consumer."""
+        self._logger.info("STARTING_TASK_CONSUMER")
         if self.status == self.statuses.STOPPED:
-            if self.scheduler_thread is not None and self.scheduler_thread.is_alive():
+            if self.consumer_thread is not None and self.consumer_thread.is_alive():
                 # wait for thread to die
-                while self.scheduler_thread.is_alive():
+                while self.consumer_thread.is_alive():
                     time.sleep(1)
 
             self.status = self.statuses.RUNNING
-            self.scheduler_thread = threading.Thread(target=self.loop)
-            self.scheduler_thread.start()
+            self.consumer_thread = threading.Thread(target=self.loop)
+            self.consumer_thread.start()
             return
 
         with self._status_lock:
@@ -88,11 +88,11 @@ class TaskScheduler(object):
 
     def stop(self, force=False):
         """
-        Stop the scheduler.
+        Stop the consumer.
 
         :param force: Flag that determines whether to stop immediately or wait for current task to stop.
         """
-        self._logger.info("STOPPING_TASK_SCHEDULER")
+        self._logger.info("STOPPING_TASK_CONSUMER")
         if force:
             self.status = self.statuses.STOPPED
         else:
@@ -106,13 +106,13 @@ class TaskScheduler(object):
                 self._logger.debug("{} tasks executing".format(len(self._on_going_tasks)))
                 # Monitor and process ongoing tasks.
                 self._process_on_going_tasks()
-                # Stop scheduler if it is stopping and there are no more on going tasks.
+                # Stop consumer if it is stopping and there are no more on going tasks.
                 with self._status_lock:
                     if len(self._on_going_tasks) == 0 and self.status == self.statuses.STOPPING:
                         self.status = self.statuses.STOPPED
                 # Check if should scale number of workers
                 self._process_scaling()
-                # Get new tasks if scheduler is running and there are less on going tasks than max.
+                # Get new tasks if consumer is running and there are less on going tasks than max.
                 if len(self._on_going_tasks) < self.workers and self.status == self.statuses.RUNNING:
                     tasks = self._get_new_tasks(self.workers - len(self._on_going_tasks))
                     self._run_tasks(tasks)
@@ -151,10 +151,8 @@ class TaskScheduler(object):
                 self._process_dead_thread(task_exec, bye_bye_tasks)
                 continue
             # Check if outdated
-            if datetime.utcnow() > task_exec.get_deadline():
-                # Postpone deadline
-                if not task_exec.postpone(self.queue_handler):
-                    self._postpone_failed(task_exec, bye_bye_tasks)
+            if datetime.utcnow() > task_exec.get_deadline() and not task_exec.postpone(self.queue_handler):
+                self._postpone_failed(task_exec, bye_bye_tasks)
         # Bye bye
         for exec_id in bye_bye_tasks:
             del self._on_going_tasks[exec_id]
@@ -280,7 +278,7 @@ class TaskScheduler(object):
     def get_status(self):
         if (
                 self.status != self.statuses.STOPPED and
-                (self.scheduler_thread is None or not self.scheduler_thread.is_alive())
+                (self.consumer_thread is None or not self.consumer_thread.is_alive())
         ):
             return self.statuses.ERROR
         return self.status

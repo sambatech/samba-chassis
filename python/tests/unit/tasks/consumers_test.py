@@ -15,29 +15,29 @@ from datetime import datetime, timedelta
 import warnings
 
 
-class TaskSchedulerTest(unittest.TestCase):
+class TaskConsumerTest(unittest.TestCase):
 
     @patch("threading.Thread")
     def test_start(self, T):
         qh = MagicMock()
-        ts = TaskScheduler(qh, {"test_task": MagicMock()}, max_workers=2)
-        self.assertEqual(ts.status, TaskScheduler.statuses.STOPPED)
+        ts = TaskConsumer(qh, {"test_task": MagicMock()}, max_workers=2)
+        self.assertEqual(ts.status, TaskConsumer.statuses.STOPPED)
         ts.start()
-        self.assertEqual(ts.status, TaskScheduler.statuses.RUNNING)
+        self.assertEqual(ts.status, TaskConsumer.statuses.RUNNING)
         T.assert_called_with(target=ts.loop)
         T().start.assert_called_once()
 
     def test_stop(self):
         qh = MagicMock()
-        ts = TaskScheduler(qh, {"test_task": MagicMock()}, max_workers=2)
-        ts.status = TaskScheduler.statuses.RUNNING
+        ts = TaskConsumer(qh, {"test_task": MagicMock()}, max_workers=2)
+        ts.status = TaskConsumer.statuses.RUNNING
         ts.stop()
-        self.assertEqual(ts.status, TaskScheduler.statuses.STOPPING)
+        self.assertEqual(ts.status, TaskConsumer.statuses.STOPPING)
 
         ts.stop(force=True)
-        self.assertEqual(ts.status, TaskScheduler.statuses.STOPPED)
+        self.assertEqual(ts.status, TaskConsumer.statuses.STOPPED)
 
-    @patch.object(tasks.schedulers.TaskScheduler, "_logger")
+    @patch.object(tasks.consumers.TaskConsumer, "_logger")
     @patch("threading.Thread")
     def test_run_tasks(self, T, l):
         qh = MagicMock()
@@ -46,19 +46,19 @@ class TaskSchedulerTest(unittest.TestCase):
         te.exec_id = "id"
         te.attr = {1: "one"}
 
-        ts = TaskScheduler(qh, {"test_task": MagicMock()}, max_workers=2)
+        ts = TaskConsumer(qh, {"test_task": MagicMock()}, max_workers=2)
         ts._run_tasks([te])
 
         l.info.assert_called_with("RUNNING_TASK: test id", extra={1: "one"})
         T.assert_called_with(target=te.execute)
         self.assertEqual(ts._on_going_tasks["id"], te)
 
-    @patch.object(tasks.schedulers.TaskScheduler, "_logger")
+    @patch.object(tasks.consumers.TaskConsumer, "_logger")
     @patch("datetime.datetime")
     def test_get_new_tasks(self, d, l):
         d.utcnow.return_value = "now"
         qh = MagicMock(task_timeout=60)
-        ts = TaskScheduler(qh, {"test_task": MagicMock()}, max_workers=2)
+        ts = TaskConsumer(qh, {"test_task": MagicMock()}, max_workers=2)
         m1 = MagicMock(
             message_attributes={
                 "task_name": {"StringValue": "test_task"},
@@ -78,17 +78,17 @@ class TaskSchedulerTest(unittest.TestCase):
 
     def test_is_known_task(self):
         qh = MagicMock(task_timeout=60)
-        ts = TaskScheduler(qh, {"test_task": MagicMock()}, max_workers=2)
+        ts = TaskConsumer(qh, {"test_task": MagicMock()}, max_workers=2)
 
         self.assertTrue(ts._is_known_task(MagicMock(message_attributes={"task_name": {"StringValue": "test_task"}})))
         self.assertFalse(ts._is_known_task(MagicMock(message_attributes="wrong")))
 
-    @patch.object(tasks.schedulers.TaskScheduler, "_logger")
+    @patch.object(tasks.consumers.TaskConsumer, "_logger")
     def test_process_dead_thread(self, l):
         qh = MagicMock(task_timeout=60)
         te = MagicMock(disabled=True, exec_id="id", message="message")
         te.task.name = "test_task"
-        ts = TaskScheduler(qh, {"test_task": MagicMock()}, max_workers=2)
+        ts = TaskConsumer(qh, {"test_task": MagicMock()}, max_workers=2)
         ts._on_going_tasks[te.exec_id] = te
         ts._process_dead_thread(te, [])
         l.error.assert_called_once_with("DEAD_THREAD: test_task id")
@@ -98,7 +98,7 @@ class TaskSchedulerTest(unittest.TestCase):
         qh = MagicMock(task_timeout=60)
         te = MagicMock(disabled=True, exec_id="id", message="message")
         te.task.name = "test_task"
-        ts = TaskScheduler(qh, {"test_task": MagicMock()}, max_workers=2, when_window=60)
+        ts = TaskConsumer(qh, {"test_task": MagicMock()}, max_workers=2, when_window=60)
         m = MagicMock(
             message_attributes={
                 "when": {
@@ -134,7 +134,7 @@ class TaskSchedulerTest(unittest.TestCase):
         qh = MagicMock(task_timeout=60)
         te = MagicMock(disabled=True, exec_id="id", message="message")
         te.task.name = "test_task"
-        ts = TaskScheduler(qh, {"test_task": MagicMock()}, when_window=5)
+        ts = TaskConsumer(qh, {"test_task": MagicMock()}, when_window=5)
         when = (datetime.utcnow() + timedelta(seconds=30))
         m = MagicMock(
             message_attributes={
@@ -158,7 +158,7 @@ class TaskSchedulerTest(unittest.TestCase):
         qh = MagicMock(task_timeout=60)
         te = MagicMock(disabled=True, exec_id="id", message="message")
         te.task.name = "test_task"
-        ts = TaskScheduler(qh, {"test_task": MagicMock()})
+        ts = TaskConsumer(qh, {"test_task": MagicMock()})
         # Success
         task_exec = MagicMock(results=True, exec_id="test", message="Help")
         bt = []
@@ -176,7 +176,7 @@ class TaskSchedulerTest(unittest.TestCase):
 
     def test_postpone_failed(self):
         qh = MagicMock(task_timeout=60)
-        ts = TaskScheduler(qh, {"test_task": MagicMock()})
+        ts = TaskConsumer(qh, {"test_task": MagicMock()})
         te = MagicMock(results=True, exec_id="test", message="Help", disabled=False, attr="attr")
         bt = []
         ts._postpone_failed(te, bt)
@@ -188,7 +188,7 @@ class TaskSchedulerTest(unittest.TestCase):
     def test_process_on_going_tasks(self):
         qh = MagicMock(task_timeout=60)
         tt = MagicMock()
-        ts = TaskScheduler(qh, {"test_task": tt})
+        ts = TaskConsumer(qh, {"test_task": tt})
         # Test first check
         te = MagicMock(
             results=True,
@@ -239,7 +239,7 @@ class TaskSchedulerTest(unittest.TestCase):
     def test_loop(self):
         qh = MagicMock(task_timeout=60)
         tt = MagicMock()
-        ts = TaskScheduler(qh, {"test_task": tt})
+        ts = TaskConsumer(qh, {"test_task": tt})
         ts.status == ts.statuses.STOPPED
         with patch.object(ts, "_logger") as l:
             ts.loop()
