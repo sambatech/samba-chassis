@@ -6,7 +6,7 @@ Copyright (c) SambaTech. All rights reserved.
 created_at: 06-JUN-2018
 updated_at: 10-JUL-2018
 
-Task scheduler for async and reliable job executions.
+Task consumer for async and reliable job executions.
 
 With this module it is possible to schedule a task to be ran by
 some thread or process in a reliable manner.
@@ -33,7 +33,7 @@ import math
 from samba_chassis import logging, config
 from samba_chassis.tasks.execs import TaskExecution
 from samba_chassis.tasks.queues import QueueHandler
-from samba_chassis.tasks.schedulers import TaskScheduler
+from samba_chassis.tasks.consumers import TaskConsumer
 
 
 class Task(object):
@@ -149,8 +149,8 @@ class ConfigurationError(RuntimeError):
 # Attributes
 #
 _logger = logging.get(__name__)
-_scheduler = None
-_scheduler_p = None
+_consumer = None
+_consumer_p = None
 _queue_pool = {}
 _tasks = {}
 _config = None
@@ -232,25 +232,25 @@ def config(config_object=None):
     _logger.debug("Configured tasks module with queue {} and attributes {}".format(queue_name, _config))
 
 
-def start_scheduler(config_object=None):
-    """Start module's standard scheduler."""
+def start_consumer(config_object=None):
+    """Start module's standard consumer."""
     # Config if necessary
     if config_object is not None:
         config(config_object)
 
-    global _scheduler
-    _logger.debug("Starting scheduler")
-    # Evaluate scheduler
+    global _consumer
+    _logger.debug("Starting consumer")
+    # Evaluate consumer
     if _config is None or not hasattr(_config, "name") or not hasattr(_config, "project"):
         _logger.error("UNCONFIGURED_TASK_MODULE")
         raise ConfigurationError("UNCONFIGURED_TASK_MODULE")
-    if _scheduler is not None and _scheduler.status == _scheduler_class.statuses.RUNNING:
-        _logger.warn("SCHEDULER_ALREADY_RUNNING")
-        raise warnings.warn("SCHEDULER_ALREADY_RUNNING")
-    # Start scheduler
+    if _consumer is not None and _consumer.status == _consumer_class.statuses.RUNNING:
+        _logger.warn("CONSUMER_ALREADY_RUNNING")
+        raise warnings.warn("CONSUMER_ALREADY_RUNNING")
+    # Start consumer
     queue_name = "{}_{}".format(_config.project, _config.name)
-    if _scheduler is None:
-        _scheduler = _scheduler_class(
+    if _consumer is None:
+        _consumer = _consumer_class(
             _queue_pool[queue_name],
             _tasks,
             workers=_config.workers,
@@ -260,28 +260,28 @@ def start_scheduler(config_object=None):
             scale_factor=_config.scale_factor,
             when_window=_config.when_window
         )
-    _scheduler.start()
+    _consumer.start()
 
 
-def stop_scheduler():
-    """Stop the scheduler from receiving new tasks."""
-    _logger.debug("Stopping scheduler")
-    # Evaluate scheduler
-    if _scheduler is None:
-        raise RuntimeError("Missing task scheduler")
-    elif _scheduler.status != _scheduler_class.statuses.RUNNING:
-        warnings.warn("Task scheduler already stopping")
-    # Stop scheduler
-    _scheduler.stop(force=False)
+def stop_consumer():
+    """Stop the consumer from receiving new tasks."""
+    _logger.debug("Stopping consumer")
+    # Evaluate consumer
+    if _consumer is None:
+        raise RuntimeError("Missing task consumer")
+    elif _consumer.status != _consumer_class.statuses.RUNNING:
+        warnings.warn("Task consumer already stopping")
+    # Stop consumer
+    _consumer.stop(force=False)
 
 
-def is_scheduler_running():
-    """Return whether the task scheduler is running or not."""
-    # Evaluate scheduler
-    if _scheduler is None:
-        raise RuntimeError("Missing task scheduler")
+def is_consumer_running():
+    """Return whether the task consumer is running or not."""
+    # Evaluate consumer
+    if _consumer is None:
+        raise RuntimeError("Missing task consumer")
     # Return result
-    if _scheduler.status == _scheduler_class.statuses.STOPPED:
+    if _consumer.status == TaskConsumer.statuses.STOPPED:
         return False
     return True
 
@@ -359,18 +359,18 @@ def ready():
         r["TASK_QUEUES"] = "OK"
     else:
         r["TASK_QUEUES"] = "ERROR"
-    if _scheduler is not None and \
-            _scheduler.get_status() in [_scheduler_class.statuses.STOPPING, _scheduler_class.statuses.RUNNING]:
-        r["TASK_SCHEDULER"] = "OK"
+    if _consumer is not None and \
+            _consumer.get_status() in [TaskConsumer.statuses.STOPPING, TaskConsumer.statuses.RUNNING]:
+        r["TASK_CONSUMER"] = "OK"
     else:
-        r["TASK_SCHEDULER"] = "ERROR"
+        r["TASK_CONSUMER"] = "ERROR"
     return r
 
 #
 # Classes to use on module functions
 #
 _task_class = Task
-_scheduler_class = TaskScheduler
+_consumer_class = TaskConsumer
 _queue_class = QueueHandler
 
 
@@ -385,15 +385,15 @@ def get_task_class():
     return _task_class
 
 
-def set_scheduler_class(scheduler_class):
-    """Set the task scheduler class to be used as standard for this module."""
-    global _scheduler_class
-    _scheduler_class = scheduler_class
+def set_consumer_class(consumer_class):
+    """Set the task consumer class to be used as standard for this module."""
+    global _consumer_class
+    _consumer_class = consumer_class
 
 
-def get_scheduler_class():
-    """Get the module's standard task scheduler class."""
-    return _scheduler_class
+def get_consumer_class():
+    """Get the module's standard task consumer class."""
+    return _consumer_class
 
 
 def set_queue_class(queue_class):
