@@ -151,10 +151,8 @@ class TaskConsumer(object):
                 self._process_dead_thread(task_exec, bye_bye_tasks)
                 continue
             # Check if outdated
-            if datetime.utcnow() > task_exec.get_deadline():
-                # Postpone deadline
-                if not task_exec.postpone(self.queue_handler):
-                    self._postpone_failed(task_exec, bye_bye_tasks)
+            if datetime.utcnow() > task_exec.get_deadline() and not task_exec.postpone(self.queue_handler):
+                self._postpone_failed(task_exec, bye_bye_tasks)
         # Bye bye
         for exec_id in bye_bye_tasks:
             del self._on_going_tasks[exec_id]
