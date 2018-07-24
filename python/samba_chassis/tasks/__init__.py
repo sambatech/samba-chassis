@@ -349,7 +349,7 @@ def run(task_name, task_attr, service_name=None, project_name=None, when=None):
     # Issue task
     if strict and task_name not in _tasks:
         raise RuntimeError("Strict task not registered")
-    _task_class.send(task_name, task_attr, _queue_pool[queue_name], when)
+    _task_class.send(task_name, task_attr, _queue_pool[queue_name], when=when)
 
 
 def ready():
