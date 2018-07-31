@@ -25,9 +25,11 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import InvalidRequestError
 from sqlalchemy.orm.exc import NoResultFound
 
-from samba_chassis import logging, config
+from samba_chassis import config
 
-_logger = logging.get(__name__)
+import logging
+_logger = logging.getLogger(__name__)
+
 _config = None
 
 config_layout = config.ConfigLayout({

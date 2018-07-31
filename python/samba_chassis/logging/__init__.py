@@ -12,8 +12,8 @@ import logging.config
 import samba_chassis
 
 
+default_logger = logging.getLogger("samba_chassis")
 _loggers = []
-_default_logger = None
 
 
 def set(filename):
@@ -32,8 +32,8 @@ def set(filename):
 
     global _loggers
     _loggers = config_dict["loggers"].keys()
-    global _default_logger
-    _default_logger = "default" if "default" in _loggers else _loggers[0]
+    global default_logger
+    default_logger = "default" if "default" in _loggers else _loggers[0]
 
     logging.config.dictConfig(config_dict)
 
@@ -45,5 +45,5 @@ def get(name):
     :param name: Logger name.
     :return: Requested logger.
     """
-    return logging.getLogger(name) if name in _loggers else logging.getLogger(_default_logger)
+    return logging.getLogger(name) if name in _loggers else logging.getLogger(default_logger)
 

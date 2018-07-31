@@ -38,11 +38,11 @@ def test_get_set(*_):
 
     logging.set("test.json")
     assert logging._loggers == ['default', 'help']
-    assert logging._default_logger == 'default'
+    assert logging.default_logger == 'default'
 
     logging.set("test.yaml")
     assert logging._loggers == ['default', 'help']
-    assert logging._default_logger == 'default'
+    assert logging.default_logger == 'default'
 
     help_l = logging.get("help")
     assert "error" in dir(help_l)

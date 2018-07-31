@@ -35,10 +35,12 @@ from samba_chassis.tasks.execs import TaskExecution
 from samba_chassis.tasks.queues import QueueHandler
 from samba_chassis.tasks.consumers import TaskConsumer
 
+import logging
+_logger = logging.getLogger(__name__)
+
 
 class Task(object):
     """Task representation that defines a task and its operations."""
-    _logger = logging.get(__name__)
 
     _progressions = {
         "NONE": lambda wait_time, retries: 0 if retries == 0 else int(wait_time),
@@ -80,7 +82,7 @@ class Task(object):
         self.on_fail = on_fail
         self.wait_time = wait_time
         if wait_progression not in self._progressions:
-            self._logger.error("INVALID_PROGRESSION")
+            _logger.error("INVALID_PROGRESSION")
             raise ValueError("INVALID_PROGRESSION")
         self.wait_progression = wait_progression
 
@@ -125,7 +127,7 @@ class Task(object):
         """
         if int(retries) >= self.max_retries:
             try:
-                self._logger.error("TASK_FAILED: {}/{} retries".format(retries, self.max_retries), extra=attr)
+                _logger.error("TASK_FAILED: {}/{} retries".format(retries, self.max_retries), extra=attr)
                 self.issue_fail(attr)
             finally:
                 return True
@@ -134,7 +136,7 @@ class Task(object):
             res = self.func(attr)
             return res if res is not None else True
         except:
-            self._logger.exception("ERROR_RUNNING_TASK", extra=attr)
+            _logger.exception("ERROR_RUNNING_TASK", extra=attr)
             return False
 
 
@@ -148,7 +150,6 @@ class ConfigurationError(RuntimeError):
 #
 # Attributes
 #
-_logger = logging.get(__name__)
 _consumer = None
 _consumer_p = None
 _queue_pool = {}
