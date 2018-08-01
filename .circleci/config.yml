@@ -76,7 +76,7 @@ jobs:
           name: Set release
           command: |
             git tag v${CIRCLE_BUILD_NUM}
-            ssh -o StrictHostKeyChecking=no github.com -q
+            ssh-keyscan -H github.com >> ~/.ssh/known_hosts
             git push origin v${CIRCLE_BUILD_NUM}
 
 workflows:
