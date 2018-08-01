@@ -11,12 +11,13 @@ import warnings
 import json
 import uuid
 from datetime import datetime
-from samba_chassis import logging
+
+import logging
+_logger = logging.getLogger(__name__)
 
 
 class QueueHandler(object):
     """Queue handler responsible to communicate with SQS, send and retrieve tasks."""
-    _logger = logging.get(__name__)
 
     _sqs_client = None
     _sqs = None
@@ -28,7 +29,7 @@ class QueueHandler(object):
         :param queue_name: SQS queue name.
         :param task_timeout: Seconds for message processing deadline.
         """
-        self._logger.debug("Creating queue handler {}".format(queue_name))
+        _logger.debug("Creating queue handler {}".format(queue_name))
         self.queue_name = queue_name
         self.queue = None
         self.task_timeout = task_timeout
@@ -45,7 +46,7 @@ class QueueHandler(object):
             try:
                 self.queue = self._sqs.get_queue_by_name(QueueName=self.queue_name)
             except self._sqs_client.exceptions.QueueDoesNotExist:
-                self._logger.info("CREATING_QUEUE_IN_AWS: {}".format(self.queue_name))
+                _logger.info("CREATING_QUEUE_IN_AWS: {}".format(self.queue_name))
                 self.queue = self._sqs.create_queue(
                     QueueName=self.queue_name,
                     Attributes={
@@ -65,7 +66,7 @@ class QueueHandler(object):
         :param when: Datetime that tells when can the task execute.
         """
         self.connect()
-        self._logger.debug("Sending task {}".format(task_name))
+        _logger.debug("Sending task {}".format(task_name))
         self.queue.send_message(
             MessageBody=json.dumps(task_attr),
             DelaySeconds=delay,
@@ -92,7 +93,7 @@ class QueueHandler(object):
         :return: Retrieved messages.
         """
         self.connect()
-        self._logger.debug("Retrieving {} messages".format(max_number))
+        _logger.debug("Retrieving {} messages".format(max_number))
         # Check max number limit
         if max_number > 10:
             max_number = 10
@@ -131,5 +132,5 @@ class QueueHandler(object):
             message.change_visibility(VisibilityTimeout=int(new_timeout))
             return True
         except:
-            QueueHandler._logger.exception("VISIBILITY_CHANGE_FAILURE")
+            _logger.exception("VISIBILITY_CHANGE_FAILURE")
             return False

@@ -8,12 +8,13 @@ updated_at: 10-JUL-2018
 """
 import math
 from datetime import datetime, timedelta
-from samba_chassis import logging
+
+import logging
+_logger = logging.getLogger(__name__)
 
 
 class TaskExecution(object):
     """Encapsulation of a task execution command."""
-    _logger = logging.get(__name__)
 
     def __init__(self, exec_id, task, attr, attempts, created_at, message, timeout):
         """
@@ -52,6 +53,6 @@ class TaskExecution(object):
     def postpone(self, queue_handler):
         """Postpone execution command deadline."""
         new_timeout = int(math.ceil((self.get_deadline() - datetime.utcnow()).total_seconds())) + self.timeout
-        self._logger.info("POSTPONE: {} for {} {}".format(new_timeout, self.task.name, self.exec_id))
+        _logger.info("POSTPONE: {} for {} {}".format(new_timeout, self.task.name, self.exec_id))
         return queue_handler.postpone(self.message, new_timeout)
 

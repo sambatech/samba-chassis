@@ -4,7 +4,7 @@
 Copyright (c) SambaTech. All rights reserved.
 
 created_at: 09-JUL-2018
-updated_at: 09-JUL-2018
+updated_at: 31-JUL-2018
 
 """
 import logging
@@ -20,14 +20,6 @@ class ContainerEngineHandler(logging.StreamHandler):
     def format(self, record):
         message = super(ContainerEngineHandler, self).format(record)
         return _format_stackdriver_json(record, message)
-
-
-class StackDriverLogger(logging.Logger):
-    """Base logger class for using the features in this module."""
-    def _log(self, level, msg, args, attr={}, exc_info=None, **kwargs):
-        extra = attr.copy()
-        extra["attr"] = attr
-        super(StackDriverLogger, self)._log(level, msg, args, exc_info, extra)
 
 
 def _format_stackdriver_json(record, message):
@@ -51,9 +43,11 @@ def _format_stackdriver_json(record, message):
         # Add exception info if it exists
         payload['exception'] = record.exc_text.replace("\"", "'").split("\n")
 
+    """
     try:
-        payload.update(record.attr)
+        payload.update(record.attrs)
     except AttributeError:
-        logging.warning("Logger without attr")
+        logging.warning("Logger without attrs")
+    """
 
     return json.dumps(payload)
