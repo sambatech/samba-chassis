@@ -1,22 +1,23 @@
 version: 2
 jobs:
-  set-workspace:
+  python-set-workspace:
     docker:
       - image: circleci/python:2.7
     working_directory: ~/samba-chassis
     steps:
       - checkout
       - restore_cache:
-          key: v1-{{ .Branch }}-{{ checksum "Pipfile.lock" }}
+          key: v1-{{ .Branch }}-{{ checksum "~/samba-chassis/python/Pipfile.lock" }}
       - run:
           name: Install dependencies
           command: |
+            cd python
             if [ ! $(pipenv --venv) ] ; then
               pipenv lock
               pipenv sync --dev --two
             fi
       - save_cache:
-          key: v1-{{ .Branch }}-{{ checksum "Pipfile.lock" }}
+          key: v1-{{ .Branch }}-{{ checksum "~/samba-chassis/python/Pipfile.lock" }}
           paths:
             - ~/.local
             - ~/.cache
@@ -34,7 +35,7 @@ jobs:
       - restore_cache:
           key: v1-{{ .Branch }}-{{ checksum "Pipfile.lock" }}
       - run:
-          name: Installing dependencies
+          name: Unit test + coverage
           command: |
             mkdir -p test-reports
             touch test-reports/unit.xml
@@ -78,21 +79,21 @@ workflows:
   version: 2
   feature-pipeline:
     jobs:
-      - set-workspace:
+      - python-set-workspace:
           filters:
             branches:
               ignore:
                 - prod
       - python-unit-test:
           requires:
-            - set-workspace
+            - python-set-workspace
       - sonar-analysis:
           requires:
             - python-unit-test
 
   release-pipeline:
     jobs:
-      - set-workspace:
+      - python-set-workspace:
           filters:
             branches:
               only: prod
@@ -100,7 +101,7 @@ workflows:
               only: /^v.*/
       - python-unit-test:
           requires:
-            - set-workspace
+            - python-set-workspace
       - sonar-analysis:
           requires:
             - python-unit-test
