@@ -69,6 +69,9 @@ jobs:
     steps:
       - attach_workspace:
           at: ~/samba-chassis
+      - add_ssh_keys:
+          fingerprints:
+            - "58:5d:4d:b4:60:c0:27:65:dd:15:be:1a:22:90:f7:8f"          
       - run:
           name: Set release
           command: |
