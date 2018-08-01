@@ -45,7 +45,7 @@ jobs:
       - persist_to_workspace:
           root: ~/samba-chassis
           paths:
-            - test-reports/unit.xml
+            - python/test-reports/unit.xml
 
   sonar-analysis:
     docker:
