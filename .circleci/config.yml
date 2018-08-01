@@ -75,6 +75,7 @@ jobs:
       - run:
           name: Set release
           command: |
+            sudo ssh -oStrictHostKeyChecking=no github.com
             git tag v${CIRCLE_BUILD_NUM}
             git push origin v${CIRCLE_BUILD_NUM}
 
@@ -100,8 +101,6 @@ workflows:
           filters:
             branches:
               only: prod
-            tags:
-              only: /^v.*/
       - python-unit-test:
           requires:
             - python-set-workspace
