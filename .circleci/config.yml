@@ -62,32 +62,11 @@ jobs:
             ./run-sonar.sh install
             ./run-sonar.sh run
 
-  release:
-    docker:
-      - image: circleci/python:2.7
-    working_directory: ~/samba-chassis
-    steps:
-      - attach_workspace:
-          at: ~/samba-chassis
-      - add_ssh_keys:
-          fingerprints:
-            - "58:5d:4d:b4:60:c0:27:65:dd:15:be:1a:22:90:f7:8f"          
-      - run:
-          name: Set release
-          command: |
-            git tag v${CIRCLE_BUILD_NUM}
-            ssh-keyscan -H github.com >> ~/.ssh/known_hosts
-            git push origin v${CIRCLE_BUILD_NUM}
-
 workflows:
   version: 2
   feature-pipeline:
     jobs:
-      - python-set-workspace:
-          filters:
-            branches:
-              ignore:
-                - prod
+      - python-set-workspace
       - python-unit-test:
           requires:
             - python-set-workspace
@@ -95,18 +74,3 @@ workflows:
           requires:
             - python-unit-test
 
-  release-pipeline:
-    jobs:
-      - python-set-workspace:
-          filters:
-            branches:
-              only: prod
-      - python-unit-test:
-          requires:
-            - python-set-workspace
-      - sonar-analysis:
-          requires:
-            - python-unit-test
-      - release:
-          requires:
-            - sonar-analysis
