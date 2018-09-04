@@ -115,7 +115,7 @@ _register = {}
 
 # INTERFACE
 def request(method, url, **kwargs):
-    if get_state(method, url) == 'OPENED':
+    if get_state(url) == 'OPENED':
         raise RequestFailed("CIRCUIT_BREAKER_OPEN")
 
     try:
@@ -124,44 +124,47 @@ def request(method, url, **kwargs):
         r = requests.request(method, url, **kwargs)
     except Exception as e:
         # Failed
-        _failed(method, url)
+        _failed(url)
         raise RequestFailed(e.message)
+    _succeeded(url)
     return r
 
 
 def get(url, **kwargs):
-    request('GET', url, **kwargs)
+    return request('GET', url, **kwargs)
 
 
 def post(url, **kwargs):
-    request('POST', url, **kwargs)
+    return request('POST', url, **kwargs)
 
 
 def put(url, **kwargs):
-    request('PUT', url, **kwargs)
+    return request('PUT', url, **kwargs)
 
 
 def delete(url, **kwargs):
-    request('DELETE', url, **kwargs)
+    return request('DELETE', url, **kwargs)
 
 
 def head(url, **kwargs):
-    request('HEAD', url, **kwargs)
+    return request('HEAD', url, **kwargs)
 
 
-def get_state(method, url):
-    state = "CLOSED"
+def get_state(url):
 
     parsed_url = urlparse(url)
-    entry = "{},{}://{}".format(method, parsed_url.scheme, parsed_url.netloc)
-    for piece in parsed_url.path.split('/'):
-        entry += "/{}".format(piece)
+    entry = "{}://{}".format(parsed_url.scheme, parsed_url.netloc)
+    state = _get_entry_state(entry)
 
-        entry_state = _get_entry_state(entry)
-        if entry_state == "OPENED":
-            state = "OPENED"
-        elif entry_state == "HALF" and state == "CLOSED":
-            state = "HALF"
+    for piece in parsed_url.path.split('/'):
+        if piece != "":
+            entry += "/{}".format(piece)
+
+            entry_state = _get_entry_state(entry)
+            if entry_state == "OPENED":
+                state = "OPENED"
+            elif entry_state == "HALF" and state == "CLOSED":
+                state = "HALF"
 
     return state
 
@@ -183,22 +186,26 @@ def _timed_out(entry):
     return datetime.utcnow() > _register[entry]['timeout']
 
 
-def _failed(method, url):
+def _failed(url):
     parsed_url = urlparse(url)
 
-    entry = "{},{}://{}".format(method, parsed_url.scheme, parsed_url.netloc)
+    entry = "{}://{}".format(parsed_url.scheme, parsed_url.netloc)
+    _fail(entry)
     for piece in parsed_url.path.split('/'):
-        entry += "/{}".format(piece)
-        _fail(entry)
+        if piece != "":
+            entry += "/{}".format(piece)
+            _fail(entry)
 
 
-def _succeeded(method, url):
+def _succeeded(url):
     parsed_url = urlparse(url)
 
-    entry = "{},{}://{}".format(method, parsed_url.scheme, parsed_url.netloc)
+    entry = "{}://{}".format(parsed_url.scheme, parsed_url.netloc)
+    _success(entry)
     for piece in parsed_url.path.split('/'):
-        entry += "/{}".format(piece)
-        _success(entry)
+        if piece != "":
+            entry += "/{}".format(piece)
+            _success(entry)
 
 
 def _fail(entry):

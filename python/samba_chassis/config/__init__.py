@@ -78,9 +78,9 @@ class ConfigLayout(object):
                 config_object = _config_ledger[config_entry]
             else:
                 path = base.split(".")
-                if config_entry in _config_ledger:
+                try:
                     config_object = _retrieve(_config_ledger[config_entry], path)
-                else:
+                except KeyError:
                     config_object = _objectify("Config", {})
         # Build final configuration object
         for key in self.simple_dict:
