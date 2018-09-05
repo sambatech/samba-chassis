@@ -22,6 +22,6 @@ setup(
         "Topic :: Utilities",
         "Programming Language :: Python :: 2.7"
     ],
-    install_requires=["setuptools", "pyyaml", "sqlalchemy"],
+    install_requires=["setuptools", "pyyaml", "sqlalchemy", "boto3", "requests"],
     python_requires=">=2.7"
 )
