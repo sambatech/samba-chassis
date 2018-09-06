@@ -57,6 +57,37 @@ or pipenv (recommended):
 ~/samba-chassis/python$ pipenv install .
 ```
 
+#### Features
 
+##### Circuit Breaker
+Present in the comm package, the module 
+requests_circuit_breaker implements a circuit 
+breaker over the requests package. It should
+be used in place of the requests module.
 
+A service client should invoke a remote service via a proxy
+that functions in a similar fashion to an electrical circuit
+breaker. When the number of consecutive failures crosses a
+threshold, the circuit breaker trips, and for the duration of
+a timeout period all attempts to invoke the remote service will
+fail immediately. After the timeout expires the circuit breaker
+allows a limited number of test requests to pass through. If
+those requests succeed the circuit breaker resumes normal operation.
+Otherwise, if there is a failure the timeout period begins again.
+
+The circuit breaker has 3 distinct states, Closed, Open, and Half-Open:
+
+Closed – When everything is normal, the circuit breaker remains
+in the closed state and all calls pass through to the services.
+When the number of failures exceeds a predetermined threshold the
+breaker trips, and it goes into the Open state.
+
+Open – The circuit breaker returns an error for calls without
+executing the function.
+
+Half-Open – After a timeout period, the circuit switches to a
+half-open state to test if the underlying problem still exists.
+If a single call fails in this half-open state, the breaker is
+once again tripped. If it succeeds, the circuit breaker resets
+back to the normal closed state. 
   
