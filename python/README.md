@@ -91,3 +91,40 @@ If a single call fails in this half-open state, the breaker is
 once again tripped. If it succeeds, the circuit breaker resets
 back to the normal closed state. 
   
+##### Asynchronous Task Management
+The package tasks implements a task consumer for asynchronous 
+and reliable job executions.
+
+With this package it is possible to schedule a task to be ran by
+some thread or process in a reliable manner.
+It uses AWS's SQS messaging queue service with one queue
+shared among all service executions.
+
+To use it you must associate task names with functions to be 
+executed when a task is retrieved from the queue. Use the 
+method set_task for that. When a task is retrieved from the 
+queue the class verifies the task name e executes
+the function associated with it passing the task attributes 
+as an argument. This associated function must return true 
+if the work was completed and false (or raise an error) if not.
+
+Although the queue exists independently from this module's 
+use, it only starts to listen and send to the queue when it's
+start function is called with its proper configuration.
+
+It is possible to define custom values for the maximum of 
+times a work can fail or throw an error.
+
+##### Job Tracking
+The package jobs implements a set of function to help with
+job tracking for asynchronous executions.
+
+##### Configuration
+The package config implements a simple way of configuring
+python modules and force environment variables to exist.
+
+##### Logging
+The package logging provides a Stackdriver log handler to be
+used in a GKE kubernetes cluster.
+
+ 
