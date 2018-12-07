@@ -43,11 +43,4 @@ def _format_stackdriver_json(record, message):
         # Add exception info if it exists
         payload['exception'] = record.exc_text.replace("\"", "'").split("\n")
 
-    """
-    try:
-        payload.update(record.attrs)
-    except AttributeError:
-        logging.warning("Logger without attrs")
-    """
-
     return json.dumps(payload)
