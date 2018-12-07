@@ -236,7 +236,7 @@ class TaskConsumerTest(unittest.TestCase):
             ts._process_on_going_tasks()
             p.assert_called_once_with(te, [])
 
-    def test_loop(self):
+    def test_loop_stopped(self):
         qh = MagicMock(task_timeout=60)
         tt = MagicMock()
         ts = TaskConsumer(qh, {"test_task": tt})
@@ -244,3 +244,47 @@ class TaskConsumerTest(unittest.TestCase):
         with patch.object(tasks.consumers, "_logger") as l:
             ts.loop()
             l.debug.assert_called_with("Getting out of loop")
+
+    def test_process_scaling_none(self):
+        qh = MagicMock(task_timeout=60)
+        tt = MagicMock()
+        ts = TaskConsumer(qh, {"test_task": tt})
+        ts.status == ts.statuses.STOPPED
+        with patch.object(tasks.consumers, "_logger") as l:
+            ts.max_workers = None
+            ts.queue_handler = MagicMock()
+            ts.queue_handler.queue_len.return_value = 100
+            ts.workers = 2
+            ts.scale_factor = 100
+            ts._process_scaling()
+            self.assertEqual(ts.workers, 2)
+
+    def test_process_scaling_down(self):
+        qh = MagicMock(task_timeout=60)
+        tt = MagicMock()
+        ts = TaskConsumer(qh, {"test_task": tt})
+        ts.status == ts.statuses.STOPPED
+        with patch.object(tasks.consumers, "_logger") as l:
+            ts.max_workers = 3
+            ts.queue_handler = MagicMock()
+            ts.queue_handler.queue_len.return_value = 100
+            ts.workers = 2
+            ts.scale_factor = 100
+            ts._process_scaling()
+            self.assertEqual(ts.workers, 1)
+
+    def test_process_scaling_up(self):
+        qh = MagicMock(task_timeout=60)
+        tt = MagicMock()
+        ts = TaskConsumer(qh, {"test_task": tt})
+        ts.status == ts.statuses.STOPPED
+        with patch.object(tasks.consumers, "_logger") as l:
+            ts.max_workers = 3
+            ts.queue_handler = MagicMock()
+            ts.queue_handler.queue_len.return_value = 300
+            ts.workers = 2
+            ts.scale_factor = 100
+            ts._process_scaling()
+            self.assertEqual(ts.workers, 3)
+
+
