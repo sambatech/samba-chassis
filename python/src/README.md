@@ -115,13 +115,29 @@ start function is called with its proper configuration.
 It is possible to define custom values for the maximum of 
 times a work can fail or throw an error.
 
-##### Job Tracking
-The package jobs implements a set of function to help with
-job tracking for asynchronous executions.
-
 ##### Configuration
 The package config implements a simple way of configuring
 python modules and force environment variables to exist.
+You can set a configuration file using the set function.
+It supports json, yaml or environment variables.
+It provides a ConfigLayout class that allows to setup
+what configuration values are required in your module:
+```python
+config_layout = config.ConfigLayout({
+    "name": config.ConfigItem(
+        default="tasks",
+        type=str,
+        rules=[lambda x: True if x.lower() == x else False]
+    ),
+    "timeout": config.ConfigItem(
+        default=120,
+        type=int,
+        rules=[lambda x: True if x > 0 else False]
+    )
+})
+```
+The, all that's needed is to feed the configuration to 
+the configuration layout with its function get.
 
 ##### Logging
 The package logging provides a new Logger class more 
