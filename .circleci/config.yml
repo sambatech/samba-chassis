@@ -92,6 +92,7 @@ workflows:
           requires:
             - python-set-workspace
       - sonar-analysis:
+          context: sonar
           requires:
             - python-unit-test
 
@@ -105,6 +106,7 @@ workflows:
           requires:
             - python-set-workspace
       - sonar-analysis:
+          context: sonar
           requires:
             - python-unit-test
       - release:
