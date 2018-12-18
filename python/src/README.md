@@ -124,7 +124,24 @@ The package config implements a simple way of configuring
 python modules and force environment variables to exist.
 
 ##### Logging
-The package logging provides a Stackdriver log handler to be
-used in a GKE kubernetes cluster.
+The package logging provides a new Logger class more 
+friendly to our micro services model. It can be configured 
+using samba-chassis config framework to define a service name.
+The service name as well as a job id and name will always 
+be present in the logging record. The getLogger function 
+returns a service friendly logger to simplify use and 
+imports. To use you need only to import this modules and 
+write in your module:
+```python
+from samba_chassis import logging
+_logger = logging.getLogger(__name__) 
+```
 
+The package logging.stackdriver provides a Stackdriver log 
+handler to be used in a GKE kubernetes cluster.
+To use this module all you need is to add the handler to you logger:
+```python
+from samba_chassis.logging import stackdriver
+logger.addhandler(ContainerEngineHandler())
+```
  
