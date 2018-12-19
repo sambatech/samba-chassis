@@ -28,7 +28,7 @@ jobs:
   python-unit-test:
     docker:
       - image: circleci/python:2.7
-    working_directory: ~/samba-chassis/python
+    working_directory: ~/samba-chassis/python/src
     steps:
       - attach_workspace:
           at: ~/samba-chassis
