@@ -9,14 +9,14 @@ updated_at: 10-JUL-2018
 import math
 from datetime import datetime, timedelta
 
-import logging
+from samba_chassis import logging
 _logger = logging.getLogger(__name__)
 
 
 class TaskExecution(object):
     """Encapsulation of a task execution command."""
 
-    def __init__(self, exec_id, task, attr, attempts, created_at, message, timeout):
+    def __init__(self, exec_id, task, attr, attempts, created_at, message, timeout, job_id, job_name):
         """
         Initiate object.
 
@@ -27,6 +27,9 @@ class TaskExecution(object):
         :param created_at: Datetime of creation.
         :param message: Queue message issuing the execution command.
         :param timeout: Command timeout.
+        :param job_id: Job id for service logging.
+        :param job_name: Job name for service logging.
+
         """
         self.exec_id = exec_id
         self.task = task
@@ -39,10 +42,12 @@ class TaskExecution(object):
         self.thread = None
         self.disabled = False
         self.postpone_num = 0
+        self.job_id = job_id
+        self.job_name = job_name
 
     def execute(self):
         """Run task."""
-        res = self.task.run(self.attr, self.attempts - 1)
+        res = self.task.run(self.attr, self.attempts - 1, job_id=self.job_id, job_name=self.job_name)
         if not self.disabled:
             self.results = res
 
@@ -53,6 +58,7 @@ class TaskExecution(object):
     def postpone(self, queue_handler):
         """Postpone execution command deadline."""
         new_timeout = int(math.ceil((self.get_deadline() - datetime.utcnow()).total_seconds())) + self.timeout
-        _logger.info("POSTPONE: {} for {} {}".format(new_timeout, self.task.name, self.exec_id))
+        _logger.info("POSTPONE: {} for {} {}".format(new_timeout, self.task.name, self.exec_id),
+                     job_id=self.job_id, job_name=self.job_name)
         return queue_handler.postpone(self.message, new_timeout)
 

@@ -18,13 +18,12 @@ class ModuleTest(unittest.TestCase):
     @patch.object(tasks, "_queue_class")
     def test_config(self, q):
         co = MagicMock(
-            project="test",
+            task_pool="test",
             workers=5
         )
         with warnings.catch_warnings(UserWarning):
             tasks.config(co)
-            self.assertEqual(tasks._config.name, "tasks")
-            self.assertEqual(tasks._config.project, "test")
+            self.assertEqual(tasks._config.task_pool, "test")
             self.assertEqual(tasks._config.task_timeout, 120)
             self.assertEqual(tasks._config.workers, 5)
             self.assertEqual(tasks._config.unknown_tasks_retries, 50)
@@ -32,8 +31,8 @@ class ModuleTest(unittest.TestCase):
             self.assertEqual(tasks._config.max_workers, 6)
             self.assertEqual(tasks._config.scale_factor, 100)
             self.assertEqual(tasks._config.when_window, 300)
-            assert "test_tasks" in tasks._queue_pool
-            q.assert_called_once_with("test_tasks", 120)
+            assert "test" in tasks._queue_pool
+            q.assert_called_once_with("test", 120)
 
     @patch.object(tasks, "_logger")
     @patch.object(tasks, "_config")
@@ -99,9 +98,8 @@ class ModuleTest(unittest.TestCase):
     def test_set_task(self, *_):
         tasks._tasks = {}
         qh = MagicMock()
-        tasks._queue_pool = {"test_tasks": qh}
-        tasks._config.name = "tasks"
-        tasks._config.project = "test"
+        tasks._queue_pool = {"tasks": qh}
+        tasks._config.task_pool = "tasks"
         f = MagicMock()
         tasks.set_task("test", f, max_retries=10, on_fail=None, wait_time=10, wait_progression="NONE")
         tasks._task_class.assert_called_once_with(
@@ -116,18 +114,17 @@ class ModuleTest(unittest.TestCase):
     def test_run(self, *_):
         qh = MagicMock()
         tasks._tasks = {"test": MagicMock()}
-        tasks._queue_pool = {"test_tasks": qh}
-        tasks._config.name = "tasks"
-        tasks._config.project = "test"
-        tasks.run("test", {"one": 1}, service_name=None, project_name=None, when="23/02/1990 14:00:00")
+        tasks._queue_pool = {"tasks": qh}
+        tasks._config.task_pool = "tasks"
+        tasks.run("test", {"one": 1}, task_pool=None, when="23/02/1990 14:00:00")
         tasks._task_class.send.assert_called_once_with(
             "test", {"one": 1}, qh, when="23/02/1990 14:00:00"
         )
 
-        tasks.run("test", {"one": 1}, service_name="other", project_name="test", when="23/02/1990 14:00:00")
-        tasks._queue_class.assert_called_with("test_other")
+        tasks.run("test", {"one": 1}, task_pool="test", when="23/02/1990 14:00:00")
+        tasks._queue_class.assert_called_with("test")
         tasks._task_class.send.assert_called_with(
-            "test", {"one": 1}, tasks._queue_pool["test_other"], when="23/02/1990 14:00:00"
+            "test", {"one": 1}, tasks._queue_pool["test"], when="23/02/1990 14:00:00"
         )
 
         tasks._tasks = {}

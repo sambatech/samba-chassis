@@ -4,7 +4,7 @@
 Copyright (c) SambaTech. All rights reserved.
 
 created_at: 10-JUL-2018
-updated_at: 10-JUL-2018
+updated_at: 19-DEC-2018
 """
 import threading
 import json
@@ -13,7 +13,7 @@ import math
 from datetime import datetime, timedelta
 from samba_chassis.tasks.execs import TaskExecution
 
-import logging
+from samba_chassis import logging
 _logger = logging.getLogger(__name__)
 
 
@@ -160,7 +160,8 @@ class TaskConsumer(object):
 
     def _postpone_failed(self, task_exec, bye_bye_tasks):
         """Process failed postpone call."""
-        _logger.error("POSTPONE_FAILURE: {} {}".format(task_exec.task.name, task_exec.exec_id))
+        _logger.error("POSTPONE_FAILURE: {} {}".format(task_exec.task.name, task_exec.exec_id),
+                      job_id=task_exec.job_id, job_name=task_exec.job_name)
         # If postpone failed, resend message
         task_exec.task.issue(task_exec.attr, 0, task_exec.exec_id)
         # Disable
@@ -187,7 +188,8 @@ class TaskConsumer(object):
     def _process_dead_thread(self, task_exec, bye_bye_tasks):
         """Process a dead thread to be considered a failed execution."""
         # A dead thread is considered fail
-        _logger.error("DEAD_THREAD: {} {}".format(task_exec.task.name, task_exec.exec_id))
+        _logger.error("DEAD_THREAD: {} {}".format(task_exec.task.name, task_exec.exec_id),
+                      job_id=task_exec.job_id, job_name=task_exec.job_name)
         if task_exec.disabled:
             # Delete message
             self.queue_handler.done(task_exec.message)
@@ -208,11 +210,16 @@ class TaskConsumer(object):
 
     def _passed_when(self, message):
         when = datetime.strptime(message.message_attributes["when"]["StringValue"], "%d/%m/%y %H:%M:%S")
-        if datetime.utcnow() > when:
+        if (datetime.utcnow() + timedelta(minutes=1)) > when:
+            # log if execution is more than one minute late
+            job_id = message.message_attributes.get("job_id", {"StringValue": "unknown"})["StringValue"]
+            job_name = message.message_attributes.get("job_name", {"StringValue": "unknown"})["StringValue"]
             _logger.warn(
-                "EXEC_PASSED_DUE_DATE: {} ({})>({})".format(
+                "EXEC_1MIN_PASSED_DUE_DATE: {} ({})>({})".format(
                     message.message_attributes["exec_id"]["StringValue"], datetime.utcnow(), when
-                )
+                ),
+                job_id=job_id,
+                job_name=job_name
             )
         when -= timedelta(seconds=self.when_window)
         return datetime.utcnow() > when
@@ -238,10 +245,14 @@ class TaskConsumer(object):
         tasks = []
         for message in messages:
             _logger.debug("Received message:  header = {} body = {}".format(message.message_attributes, message.body))
+            job_id = message.message_attributes.get("job_id", {"StringValue": "unknown"})["StringValue"]
+            job_name = message.message_attributes.get("job_name", {"StringValue": "unknown"})["StringValue"]
             # Check if message has a known task
             if not self._is_known_task(message):
                 _logger.warn(
-                    "RECEIVED_UNKNOWN_TASK: header = {} attr = {}".format(message.message_attributes, message.body)
+                    "RECEIVED_UNKNOWN_TASK: header = {} attr = {}".format(message.message_attributes, message.body),
+                    job_id=job_id,
+                    job_name=job_name
                 )
                 if int(message.attributes['ApproximateReceiveCount']) > self.unknown_tasks_retries:
                     self.queue_handler.done(message)
@@ -261,7 +272,9 @@ class TaskConsumer(object):
                     attempts=int(message.attributes['ApproximateReceiveCount']),
                     created_at=datetime.utcnow(),
                     message=message,
-                    timeout=self.queue_handler.task_timeout
+                    timeout=self.queue_handler.task_timeout,
+                    job_id=job_id,
+                    job_name=job_name
                 )
             )
         # return all objects in a list
@@ -271,7 +284,7 @@ class TaskConsumer(object):
         """Run tasks."""
         for task_exec in tasks:
             _logger.info("RUNNING_TASK: {} {}".format(task_exec.task.name, task_exec.exec_id),
-                              extra=task_exec.attr)
+                         job_id=task_exec.job_id, job_name=task_exec.job_name)
             task_exec.thread = threading.Thread(target=task_exec.execute)
             task_exec.thread.start()
             self._on_going_tasks[task_exec.exec_id] = task_exec
