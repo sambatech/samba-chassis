@@ -12,7 +12,7 @@ import json
 import uuid
 from datetime import datetime
 
-import logging
+from samba_chassis import logging
 _logger = logging.getLogger(__name__)
 
 
@@ -29,7 +29,7 @@ class QueueHandler(object):
         :param queue_name: SQS queue name.
         :param task_timeout: Seconds for message processing deadline.
         """
-        _logger.debug("Creating queue handler {}".format(queue_name))
+        _logger.debug("CREATING_QUEUE_HANDLER {}".format(queue_name))
         self.queue_name = queue_name
         self.queue = None
         self.task_timeout = task_timeout
@@ -55,7 +55,7 @@ class QueueHandler(object):
                     }
                 )
 
-    def send(self, task_name, task_attr, delay=0, exec_id=None, when=None):
+    def send(self, task_name, task_attr, delay=0, exec_id=None, when=None, **kwargs):
         """
         Send task to SQS queue.
 
@@ -66,7 +66,12 @@ class QueueHandler(object):
         :param when: Datetime that tells when can the task execute.
         """
         self.connect()
-        _logger.debug("Sending task {}".format(task_name))
+        _logger.debug(
+            "Sending task {}".format(task_name),
+            job_id=kwargs.get("job_id", "unknown"),
+            job_name=kwargs.get("job_name", "unknown")
+        )
+
         self.queue.send_message(
             MessageBody=json.dumps(task_attr),
             DelaySeconds=delay,
@@ -74,9 +79,12 @@ class QueueHandler(object):
                 "task_name": {'StringValue': task_name, 'DataType': 'String'},
                 "exec_id": {'StringValue': str(uuid.uuid4()) if exec_id is None else exec_id, 'DataType': 'String'},
                 "when": {
-                    'StringValue': datetime.utcnow().strftime("%d/%m/%y %H:%M:%S") if when is None else when.strftime("%d/%m/%y %H:%M:%S"),
+                    'StringValue': datetime.utcnow().strftime("%d/%m/%y %H:%M:%S")
+                    if when is None else when.strftime("%d/%m/%y %H:%M:%S"),
                     'DataType': 'String'
-                }
+                },
+                "job_id": {'StringValue': kwargs.get("job_id", "unknown"), 'DataType': 'String'},
+                "job_name": {'StringValue': kwargs.get("job_name", "unknown"), 'DataType': 'String'},
             }
         )
 
@@ -132,5 +140,7 @@ class QueueHandler(object):
             message.change_visibility(VisibilityTimeout=int(new_timeout))
             return True
         except:
-            _logger.exception("VISIBILITY_CHANGE_FAILURE")
+            job_id = message.message_attributes.get("job_id", {"StringValue": "unknown"})["StringValue"]
+            job_name = message.message_attributes.get("job_name", {"StringValue": "unknown"})["StringValue"]
+            _logger.exception("VISIBILITY_CHANGE_FAILURE", job_id=job_id, job_name=job_name)
             return False

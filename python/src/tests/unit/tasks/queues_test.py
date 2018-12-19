@@ -6,12 +6,11 @@ Copyright (c) SambaTech. All rights reserved.
 created_at: 11-JUN-2018
 updated_at: 11-JUL-2018
 """
-from samba_chassis import tasks
 from samba_chassis.tasks import *
-from mock import MagicMock, patch, ANY
+from mock import MagicMock, patch
 import unittest
 import boto3
-from datetime import datetime, timedelta
+from datetime import datetime
 import warnings
 
 
@@ -44,7 +43,9 @@ class QueueHandlerTest(unittest.TestCase):
                 'task_name': {
                     'DataType': 'String',
                     'StringValue': 'test'
-                }
+                },
+                'job_id': {'DataType': 'String', 'StringValue': 'unknown'},
+                'job_name': {'DataType': 'String', 'StringValue': 'unknown'}
             },
             MessageBody='{"1": "one"}'
         )

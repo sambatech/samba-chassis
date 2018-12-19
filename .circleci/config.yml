@@ -7,17 +7,18 @@ jobs:
     steps:
       - checkout
       - restore_cache:
-          key: v1-{{ .Branch }}-{{ checksum "~/samba-chassis/python/Pipfile.lock" }}
+          key: v1-{{ .Branch }}-{{ checksum "~/samba-chassis/python/src/Pipfile.lock" }}
       - run:
           name: Install dependencies
           command: |
             cd python
+            cd src
             if [ ! $(pipenv --venv) ] ; then
               pipenv lock
               pipenv sync --dev --two
             fi
       - save_cache:
-          key: v1-{{ .Branch }}-{{ checksum "~/samba-chassis/python/Pipfile.lock" }}
+          key: v1-{{ .Branch }}-{{ checksum "~/samba-chassis/python/src/Pipfile.lock" }}
           paths:
             - ~/.local
             - ~/.cache
@@ -33,7 +34,7 @@ jobs:
       - attach_workspace:
           at: ~/samba-chassis
       - restore_cache:
-          key: v1-{{ .Branch }}-{{ checksum "Pipfile.lock" }}
+          key: v1-{{ .Branch }}-{{ checksum "~/samba-chassis/python/src/Pipfile.lock" }}
       - run:
           name: Unit test + coverage
           command: |
@@ -45,7 +46,7 @@ jobs:
       - persist_to_workspace:
           root: ~/samba-chassis
           paths:
-            - python/test-reports/unit.xml
+            - python/src/test-reports/unit.xml
 
   sonar-analysis:
     docker:
@@ -71,6 +72,7 @@ workflows:
           requires:
             - python-set-workspace
       - sonar-analysis:
+          context: sonar
           requires:
             - python-unit-test
 
