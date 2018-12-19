@@ -12,6 +12,7 @@ jobs:
           name: Install dependencies
           command: |
             cd python
+            cd src
             if [ ! $(pipenv --venv) ] ; then
               pipenv lock
               pipenv sync --dev --two
