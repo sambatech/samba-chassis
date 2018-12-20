@@ -1,11 +1,12 @@
 # Release History
 
-YYYY-MM-DD  John Doe  <johndoe@example.com>
+v0.3.0  2018-12-20  
+Authors:
 
-    * myfile.ext (myfunction): my changes made
-    additional changes
+* Vitor Paisante  <vitor.paisante@sambatech.com>
 
-    * myfile.ext (unrelated_change): my changes made
-    to myfile.ext but completely unrelated to the above
+Changes:
 
-    * anotherfile.ext (somefunction): more changes
+* Python: Logging package.
+* Python: Tasks package.
+* Python: Configuration package. 
