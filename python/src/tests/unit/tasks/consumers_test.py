@@ -44,12 +44,14 @@ class TaskConsumerTest(unittest.TestCase):
         te = MagicMock()
         te.task.name = "test"
         te.exec_id = "id"
+        te.job_id = "id"
+        te.job_name = "name"
         te.attr = {1: "one"}
 
         ts = TaskConsumer(qh, {"test_task": MagicMock()}, max_workers=2)
         ts._run_tasks([te])
 
-        l.info.assert_called_with("RUNNING_TASK: test id", extra={1: "one"})
+        l.info.assert_called_with('RUNNING_TASK: test id', job_id='id', job_name='name')
         T.assert_called_with(target=te.execute)
         self.assertEqual(ts._on_going_tasks["id"], te)
 
@@ -68,11 +70,11 @@ class TaskConsumerTest(unittest.TestCase):
             body='{"1": "one"}',
             attributes={'ApproximateReceiveCount': 2}
         )
-        m2 = MagicMock(message_attributes="wrong", body="wrong_body")
+        m2 = MagicMock(message_attributes={"wrong": "attrs"}, body="wrong_body")
         qh.retrieve.return_value = [m1, m2]
 
         res = ts._get_new_tasks(5)
-        l.warn.assert_called_with("RECEIVED_UNKNOWN_TASK: header = wrong attr = wrong_body")
+        l.warn.assert_called_with("RECEIVED_UNKNOWN_TASK: header = {'wrong': 'attrs'} attr = wrong_body", job_id='unknown', job_name='unknown')
         self.assertIsInstance(res[0], TaskExecution)
         self.assertEqual(len(res), 1)
 
@@ -86,12 +88,12 @@ class TaskConsumerTest(unittest.TestCase):
     @patch.object(tasks.consumers, "_logger")
     def test_process_dead_thread(self, l):
         qh = MagicMock(task_timeout=60)
-        te = MagicMock(disabled=True, exec_id="id", message="message")
+        te = MagicMock(disabled=True, exec_id="id", message="message", job_id="id", job_name="name")
         te.task.name = "test_task"
         ts = TaskConsumer(qh, {"test_task": MagicMock()}, max_workers=2)
         ts._on_going_tasks[te.exec_id] = te
         ts._process_dead_thread(te, [])
-        l.error.assert_called_once_with("DEAD_THREAD: test_task id")
+        l.error.assert_called_once_with('DEAD_THREAD: test_task id', job_id='id', job_name='name')
         qh.done.assert_called_once_with("message")
 
     def test_passed_when(self):
@@ -103,6 +105,9 @@ class TaskConsumerTest(unittest.TestCase):
             message_attributes={
                 "when": {
                     "StringValue": (datetime.utcnow() + timedelta(seconds=30)).strftime("%d/%m/%y %H:%M:%S")
+                },
+                "exec_id": {
+                    "StringValue": "exec_id"
                 }
             }
         )
@@ -111,6 +116,9 @@ class TaskConsumerTest(unittest.TestCase):
             message_attributes={
                 "when": {
                     "StringValue": (datetime.utcnow() + timedelta(seconds=90)).strftime("%d/%m/%y %H:%M:%S")
+                },
+                "exec_id": {
+                    "StringValue": "exec_id"
                 }
             }
         )

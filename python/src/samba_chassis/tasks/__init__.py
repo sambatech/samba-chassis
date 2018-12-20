@@ -35,7 +35,6 @@ from samba_chassis.tasks.execs import TaskExecution
 from samba_chassis.tasks.queues import QueueHandler
 from samba_chassis.tasks.consumers import TaskConsumer
 
-import logging
 _logger = logging.getLogger(__name__)
 
 
@@ -50,7 +49,7 @@ class Task(object):
     }
 
     @staticmethod
-    def send(task_name, attr, queue_handler, delay=0, exec_id=None, when=None):
+    def send(task_name, attr, queue_handler, delay=0, exec_id=None, when=None, **kwargs):
         """
         Send a task execution command to queue handler for the selected task.
 
@@ -61,7 +60,7 @@ class Task(object):
         :param exec_id: Command id.
         :param when: Datetime that tells when can the task execute.
         """
-        queue_handler.send(task_name, attr, delay, exec_id, when)
+        queue_handler.send(task_name, attr, delay, exec_id, when, **kwargs)
 
     def __init__(self, name, func, queue_handler, max_retries=10, on_fail=None, wait_time=0, wait_progression="NONE"):
         """
@@ -82,8 +81,8 @@ class Task(object):
         self.on_fail = on_fail
         self.wait_time = wait_time
         if wait_progression not in self._progressions:
-            _logger.error("INVALID_PROGRESSION")
-            raise ValueError("INVALID_PROGRESSION")
+            _logger.error("INVALID_PROGRESSION {}".format(wait_progression))
+            raise ValueError("INVALID_PROGRESSION {}".format(wait_progression))
         self.wait_progression = wait_progression
 
     def get_delay(self, retries=0):
@@ -117,17 +116,20 @@ class Task(object):
         else:
             self.send(self.on_fail, attr, self.queue_handler)
 
-    def run(self, attr, retries=0):
+    def run(self, attr, retries=0, job_id="unknown", job_name="unknown"):
         """
         Run task.
 
         :param attr: Dictionary with task attributes (data to be used by task).
         :param retries: Number of retries already performed in this command.
+        :param job_id: Job id for service logging.
+        :param job_name: Job name for service logging.
         :return: True if successful, false otherwise.
         """
         if int(retries) >= self.max_retries:
             try:
-                _logger.error("TASK_FAILED: {}/{} retries".format(retries, self.max_retries), extra=attr)
+                _logger.error("TASK_FAILED {}: {}/{} retries".format(self.name, retries, self.max_retries),
+                              job_id=job_id, job_name=job_name)
                 self.issue_fail(attr)
             finally:
                 return True
@@ -136,7 +138,7 @@ class Task(object):
             res = self.func(attr)
             return res if res is not None else True
         except:
-            _logger.exception("ERROR_RUNNING_TASK", extra=attr)
+            _logger.exception("ERROR_RUNNING_TASK {}".format(self.name), job_id=job_id, job_name=job_name)
             return False
 
 
@@ -161,13 +163,7 @@ _config = None
 # Config Layout
 #
 config_layout = config.ConfigLayout({
-    "name": config.ConfigItem(
-        default="tasks",
-        type=str,
-        rules=[lambda x: True if x.lower() == x else False]
-    ),
-    "project": config.ConfigItem(
-        default="project",
+    "task_pool": config.ConfigItem(
         type=str,
         rules=[lambda x: True if x.lower() == x else False]
     ),
@@ -216,7 +212,7 @@ def config(config_object=None):
     """
     Configure module.
 
-    :param config_object: A configuration object. It must have name and project, optional parameters are
+    :param config_object: A configuration object. It must have task_pool, optional parameters are
     task_timeout (default 120), workers (default 3), unknown_tasks_retries (default 50),
     unknown_tasks_delay (default 10), max_workers (default 10), scale_factor (default 100).
     """
@@ -227,7 +223,7 @@ def config(config_object=None):
         _config = config_layout.get(config_object=config_object)
     # Configure module
     # Create queue handler pool with its names.
-    queue_name = "{}_{}".format(_config.project, _config.name)
+    queue_name = _config.task_pool
     _queue_pool[queue_name] = _queue_class(queue_name, _config.task_timeout)
 
     _logger.debug("Configured tasks module with queue {} and attributes {}".format(queue_name, _config))
@@ -242,14 +238,14 @@ def start_consumer(config_object=None):
     global _consumer
     _logger.debug("Starting consumer")
     # Evaluate consumer
-    if _config is None or not hasattr(_config, "name") or not hasattr(_config, "project"):
+    if _config is None or not hasattr(_config, "task_pool"):
         _logger.error("UNCONFIGURED_TASK_MODULE")
         raise ConfigurationError("UNCONFIGURED_TASK_MODULE")
     if _consumer is not None and _consumer.status == _consumer_class.statuses.RUNNING:
         _logger.warn("CONSUMER_ALREADY_RUNNING")
         raise warnings.warn("CONSUMER_ALREADY_RUNNING")
     # Start consumer
-    queue_name = "{}_{}".format(_config.project, _config.name)
+    queue_name = _config.task_pool
     if _consumer is None:
         _consumer = _consumer_class(
             _queue_pool[queue_name],
@@ -304,7 +300,7 @@ def set_task(task_name, task_function, max_retries=10, on_fail=None, wait_time=1
         _logger.warn("REGISTERED_TASK_OVERWRITTEN: {}".format(task_name))
         warnings.warn("REGISTERED_TASK_OVERWRITTEN: {}".format(task_name))
     # Register task
-    queue_name = "{}_{}".format(_config.project, _config.name)
+    queue_name = _config.task_pool
     _tasks[task_name] = _task_class(task_name, task_function, _queue_pool[queue_name],
                                     max_retries, on_fail, wait_time, wait_progression)
 
@@ -324,33 +320,36 @@ def task(max_retries=10, on_fail=None, wait_time=10, wait_progression="NONE"):
     return real_dec
 
 
-def run(task_name, task_attr, service_name=None, project_name=None, when=None):
+def run(task_name, task_attr, task_pool=None, when=None, **kwargs):
     """
     Send a run task message to queue.
 
     :param task_name: Task to execute.
     :param task_attr: Attributes to use for execution.
-    :param service_name: Service that runs this task. The default is the current service.
-    :param project_name: Service project. The default is the current project.
+    :param task_pool: The name set for the task pool where all tasks come frmo.
+    The default is the current service's name.
     :param when: Datetime that tells when can the task execute.
     """
     # Define service and queue handler
-    if service_name is None:
-        service_name = _config.name
-    if project_name is None:
-        project_name = _config.project
+    if task_pool is None:
+        task_pool = _config.task_pool
 
     strict = True
-    if service_name != _config.name or project_name != _config.project:
+    if task_pool != _config.task_pool:
         strict = False
 
-    queue_name = "{}_{}".format(project_name, service_name)
+    queue_name = task_pool
     if queue_name not in _queue_pool:
         _queue_pool[queue_name] = _queue_class(queue_name)
     # Issue task
     if strict and task_name not in _tasks:
-        raise RuntimeError("Strict task not registered")
-    _task_class.send(task_name, task_attr, _queue_pool[queue_name], when=when)
+        _logger.error(
+            "STRICT_TASK_NOT_REGISTERED: {}".format(task_name),
+            job_id=kwargs.get("job_id", "unknown"),
+            job_name=kwargs.get("job_name", "unknown")
+        )
+        raise RuntimeError("STRICT_TASK_NOT_REGISTERED: {}".format(task_name))
+    _task_class.send(task_name, task_attr, _queue_pool[queue_name], when=when, **kwargs)
 
 
 def ready():
@@ -360,12 +359,18 @@ def ready():
         r["TASK_QUEUES"] = "OK"
     else:
         r["TASK_QUEUES"] = "ERROR"
-    if _consumer is not None and \
-            _consumer.get_status() in [TaskConsumer.statuses.STOPPING, TaskConsumer.statuses.RUNNING]:
-        r["TASK_CONSUMER"] = "OK"
-    else:
+
+    if _consumer is None:
+        _logger.error("TASK_CONSUMER_IS_NONE")
         r["TASK_CONSUMER"] = "ERROR"
+    elif _consumer.get_status() not in [TaskConsumer.statuses.STOPPING, TaskConsumer.statuses.RUNNING]:
+        _logger.error("TASK_CONSUMER_BAD_STATUS {}".format(_consumer.get_status()))
+        r["TASK_CONSUMER"] = "ERROR"
+    else:
+        r["TASK_CONSUMER"] = "OK"
+
     return r
+
 
 #
 # Classes to use on module functions

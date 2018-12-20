@@ -18,24 +18,25 @@ import warnings
 class TaskExecutionTest(unittest.TestCase):
 
     def test_execute(self):
-        te = TaskExecution("1", MagicMock(execute=lambda: True), {1: {"one"}}, 1, datetime.utcnow(), MagicMock(), 30)
+        te = TaskExecution("1", MagicMock(execute=lambda: True), {1: {"one"}},
+                           1, datetime.utcnow(), MagicMock(), 30, "id", "name")
         te.execute()
-        te.task.run.assert_called_with({1: {"one"}}, 0)
+        te.task.run.assert_called_with({1: {"one"}}, 0, job_id='id', job_name='name')
 
     def test_get_deadline(self):
         now = datetime.utcnow()
-        te = TaskExecution("1", MagicMock(execute=lambda: True), {1: {"one"}}, 1, now, MagicMock(), 30)
+        te = TaskExecution("1", MagicMock(execute=lambda: True), {1: {"one"}}, 1, now, MagicMock(), 30, "id", "name")
         deadline = te.get_deadline()
         self.assertEqual(deadline, now + timedelta(seconds=15))
 
-        te = TaskExecution("1", MagicMock(execute=lambda: True), {1: {"one"}}, 1, now, MagicMock(), 60)
+        te = TaskExecution("1", MagicMock(execute=lambda: True), {1: {"one"}}, 1, now, MagicMock(), 60, "id", "name")
         te.postpone_num = 3
         deadline = te.get_deadline()
         self.assertEqual(deadline, now + timedelta(seconds=120))
 
     def test_postpone(self):
         now = datetime.utcnow()
-        te = TaskExecution("1", MagicMock(execute=lambda: True), {1: {"one"}}, 1, now, "message", 30)
+        te = TaskExecution("1", MagicMock(execute=lambda: True), {1: {"one"}}, 1, now, "message", 30, "id", "name")
         qh = MagicMock()
         te.postpone(qh)
         qh.postpone.assert_called_with("message", 45)
