@@ -1,5 +1,5 @@
 # Samba Chassis
-_0.3.0, 2018-12-20_
+_0.3.1, 2018-12-20_
 
 Copyright (c) SambaTech. All rights reserved.
 

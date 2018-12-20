@@ -1,5 +1,5 @@
 ## RELEASE NOTES
-_samba-chassis_, _v0.3.0_, 2018-12-20
+_samba-chassis_, _v0.3.1_, 2018-12-20
 
 ### Overview
 This release improves the logging package and adds
