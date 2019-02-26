@@ -89,6 +89,8 @@ class ConfigLayout(object):
                 self.simple_dict[key].current = _retrieve(config_object, path)
             except KeyError:
                 warnings.warn("Layout item {} not found in config object".format(key))
+            except AttributeError:
+                warnings.warn("Layout item {} not found in config object".format(key))
             if not self.simple_dict[key].eval():
                 raise ValueError("{} is divergent".format(key))
 
