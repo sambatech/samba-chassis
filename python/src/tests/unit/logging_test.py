@@ -34,6 +34,6 @@ class LoggingTest(unittest.TestCase):
         modf.return_value = 1, 1
 
         self.assertEqual(
-            '{"_mock_call_count": 0, "timestamp": {"seconds": 1, "nanos": 1000000000}, "exception": ["exc_text"], "module": "module name", "_mock_call_args": null, "_spec_class": null, "file": "pname", "message": "test message", "_mock_called": false, "line": 1, "_mock_name": null, "method_calls": [], "_mock_new_name": "", "_mock_methods": null, "severity": "lname", "thread": 1, "_mock_wraps": null, "_mock_side_effect": null, "_mock_delegate": null, "_mock_new_parent": null, "_spec_signature": null, "_mock_parent": null, "_mock_call_args_list": [], "_mock_mock_calls": [], "_spec_set": null, "_mock_unsafe": false}',
+            '{"message": "test message", "timestamp": {"seconds": 1, "nanos": 1000000000}, "thread": 1, "severity": "lname", "module": "module name", "file": "pname", "line": 1, "_mock_parent": null, "_mock_name": null, "_mock_new_name": "", "_mock_new_parent": null, "_spec_class": null, "_spec_set": null, "_spec_signature": null, "_mock_methods": null, "_mock_wraps": null, "_mock_delegate": null, "_mock_called": false, "_mock_call_args": null, "_mock_call_count": 0, "_mock_call_args_list": [], "_mock_mock_calls": [], "method_calls": [], "_mock_unsafe": false, "_mock_side_effect": null, "exception": ["exc_text"]}',
             stackdriver._format_stackdriver_json(record, "test message")
         )

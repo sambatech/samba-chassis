@@ -59,7 +59,7 @@ class JobTrackerTests(unittest.TestCase):
 
         assert config.require_env_var("SYSTEM2", default=8) == 8
 
-    def test_get(self):
+    def  test_get(self):
         dictionary = {
             "t1": 1,
             "t2": {
