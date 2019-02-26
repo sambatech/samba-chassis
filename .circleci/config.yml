@@ -7,7 +7,7 @@ jobs:
     steps:
       - checkout
       - restore_cache:
-          key: v2-{{ .Branch }}-{{ checksum "~/samba-chassis/python/src/Pipfile.lock" }}
+          key: v3-{{ .Branch }}-{{ checksum "~/samba-chassis/python/src/Pipfile.lock" }}
       - run:
           name: Install dependencies
           command: |
@@ -15,10 +15,10 @@ jobs:
             cd src
             if [ ! $(pipenv --venv) ] ; then
               pipenv lock
-              pipenv sync --dev --two
+              pipenv sync --dev --python 3.6
             fi
       - save_cache:
-          key: v1-{{ .Branch }}-{{ checksum "~/samba-chassis/python/src/Pipfile.lock" }}
+          key: v3-{{ .Branch }}-{{ checksum "~/samba-chassis/python/src/Pipfile.lock" }}
           paths:
             - ~/.local
             - ~/.cache
@@ -34,7 +34,7 @@ jobs:
       - attach_workspace:
           at: ~/samba-chassis
       - restore_cache:
-          key: v2-{{ .Branch }}-{{ checksum "~/samba-chassis/python/src/Pipfile.lock" }}
+          key: v3-{{ .Branch }}-{{ checksum "~/samba-chassis/python/src/Pipfile.lock" }}
       - run:
           name: Unit test + coverage
           command: |
