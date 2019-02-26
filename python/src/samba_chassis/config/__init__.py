@@ -89,6 +89,8 @@ class ConfigLayout(object):
                 self.simple_dict[key].current = _retrieve(config_object, path)
             except KeyError:
                 warnings.warn("Layout item {} not found in config object".format(key))
+            except AttributeError:
+                warnings.warn("Layout item {} not found in config object".format(key))
             if not self.simple_dict[key].eval():
                 raise ValueError("{} is divergent".format(key))
 
@@ -182,7 +184,9 @@ def _retrieve(ob, path):
             index = int(target)
             ob = ob[index]
         except ValueError:
-            ob = ob.__dict__[target]
+            ob = getattr(ob, target)
+        except AttributeError:
+            ob = getattr(ob, target)
     return ob
 
 
@@ -207,7 +211,7 @@ def _objectify(name, element, alias_dict={}):
     if isinstance(element, ConfigItem):
         return element.current
     try:
-        return alias_dict[element] if isinstance(element, basestring) and element[0] == "." else element
+        return alias_dict[element] if isinstance(element, str) and element[0] == "." else element
     except KeyError:
         warnings.warn("Alias reference {} can't be dereferenced".format(element))
         return element

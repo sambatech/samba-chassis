@@ -19,9 +19,15 @@ class ModuleTest(unittest.TestCase):
     def test_config(self, q):
         co = MagicMock(
             task_pool="test",
-            workers=5
+            workers=5,
+            task_timeout=120,
+            unknown_tasks_retries=50,
+            unknown_tasks_delay=10,
+            max_workers=6,
+            scale_factor=100,
+            when_window=300
         )
-        with warnings.catch_warnings(UserWarning):
+        with warnings.catch_warnings():
             tasks.config(co)
             self.assertEqual(tasks._config.task_pool, "test")
             self.assertEqual(tasks._config.task_timeout, 120)
