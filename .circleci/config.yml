@@ -2,7 +2,7 @@ version: 2
 jobs:
   python-set-workspace:
     docker:
-      - image: circleci/python:2.7
+      - image: circleci/python:3.6
     working_directory: ~/samba-chassis
     steps:
       - checkout
@@ -28,7 +28,7 @@ jobs:
 
   python-unit-test:
     docker:
-      - image: circleci/python:2.7
+      - image: circleci/python:3.6
     working_directory: ~/samba-chassis/python/src
     steps:
       - attach_workspace:
