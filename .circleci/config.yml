@@ -2,7 +2,7 @@ version: 2
 jobs:
   python-set-workspace:
     docker:
-      - image: circleci/python:3.6
+      - image: cimg/python:3.6
     working_directory: ~/samba-chassis
     steps:
       - checkout
@@ -28,7 +28,7 @@ jobs:
 
   python-unit-test:
     docker:
-      - image: circleci/python:3.6
+      - image: cimg/python:3.6
     working_directory: ~/samba-chassis/python/src
     steps:
       - attach_workspace:
@@ -50,7 +50,7 @@ jobs:
 
   sonar-analysis:
     docker:
-      - image: circleci/openjdk:8-jdk-browsers
+      - image: cimg/openjdk:8.0-browsers
     working_directory: ~/samba-chassis
     steps:
       - attach_workspace:
