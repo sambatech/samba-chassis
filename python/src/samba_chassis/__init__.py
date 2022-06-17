@@ -21,7 +21,7 @@ def dict_from_env(prefix=""):
 def dict_from_yaml(filename):
     """Return a dictionary taken from an YAML file."""
     with open(filename) as config_file:
-        return yaml.load(config_file)
+        return yaml.safe_load(config_file)
 
 
 def dict_from_json(filename):
