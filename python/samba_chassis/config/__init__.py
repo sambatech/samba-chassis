@@ -207,7 +207,7 @@ def _objectify(name, element, alias_dict={}):
     if isinstance(element, ConfigItem):
         return element.current
     try:
-        return alias_dict[element] if isinstance(element, basestring) and element[0] == "." else element
+        return alias_dict[element] if isinstance(element, str) and element[0] == "." else element
     except KeyError:
         warnings.warn("Alias reference {} can't be dereferenced".format(element))
         return element
