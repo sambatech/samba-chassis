@@ -182,7 +182,7 @@ def _retrieve(ob, path):
             index = int(target)
             ob = ob[index]
         except ValueError:
-            ob = ob.__dict__[target]
+            ob = getattr(ob, target)
     return ob
 
 
